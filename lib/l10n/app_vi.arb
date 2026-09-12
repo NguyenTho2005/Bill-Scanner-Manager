@@ -1,0 +1,76 @@
+{
+  "@@locale": "vi",
+  "appName": "BillTracker",
+  "ok": "OK",
+  "cancel": "Hủy",
+  "save": "Lưu",
+  "edit": "Chỉnh sửa",
+  "delete": "Xóa",
+  "confirm": "Xác nhận",
+  "retry": "Thử lại",
+  "loading": "Đang tải...",
+  "errorUnknown": "Có lỗi xảy ra. Vui lòng thử lại.",
+  
+  "navFeed": "Giao dịch",
+  "navBudget": "Ngân sách",
+  "navReports": "Báo cáo",
+  "navSettings": "Cài đặt",
+
+  "addTransaction": "Thêm giao dịch",
+  "productSnap": "Chụp sản phẩm",
+  "receiptScan": "Quét hóa đơn",
+  "manualEntry": "Nhập thủ công",
+
+  "amount": "Số tiền",
+  "amountHint": "Nhập số tiền",
+  "amountRequired": "Vui lòng nhập số tiền",
+  "category": "Danh mục",
+  "merchant": "Cửa hàng",
+  "merchantHint": "Tên cửa hàng",
+  "note": "Ghi chú",
+  "noteHint": "Thêm ghi chú...",
+  "date": "Ngày",
+  "paymentMethod": "Hình thức thanh toán",
+  
+  "catFoodDrinks": "Ăn uống",
+  "catTransport": "Di chuyển",
+  "catShopping": "Mua sắm",
+  "catEntertainment": "Giải trí",
+  "catHealth": "Sức khỏe",
+  "catEducation": "Giáo dục",
+  "catBills": "Hóa đơn",
+  "catWork": "Công việc",
+  "catTravel": "Du lịch",
+  "catOther": "Khác",
+
+  "paymentCash": "Tiền mặt",
+  "paymentCard": "Thẻ",
+  "paymentTransfer": "Chuyển khoản",
+  "paymentEwallet": "Ví điện tử",
+
+  "aiSuggested": "AI đề xuất",
+  "aiLowConfidence": "Độ chính xác thấp — vui lòng kiểm tra",
+  "editBeforeSave": "Kiểm tra và chỉnh sửa trước khi lưu",
+
+  "biometricPrompt": "Xác thực để mở BillTracker",
+  "biometricSubtitle": "Dùng vân tay hoặc khuôn mặt",
+  "pinEnter": "Nhập mã PIN",
+  "pinForgot": "Quên PIN?",
+
+  "budgetLimit": "Hạn mức",
+  "budgetSpent": "Đã chi",
+  "budgetRemaining": "Còn lại",
+  "budgetExceeded": "Vượt ngân sách",
+  "budgetWarning80": "Đã dùng 80% ngân sách {category}",
+  "@budgetWarning80": {
+    "placeholders": {
+      "category": { "type": "String" }
+    }
+  },
+
+  "today": "Hôm nay",
+  "yesterday": "Hôm qua",
+  "thisMonth": "Tháng này",
+  "lastMonth": "Tháng trước"
+}
+

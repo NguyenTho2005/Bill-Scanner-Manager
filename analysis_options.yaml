@@ -1,0 +1,27 @@
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/*.gr.dart"
+    - lib/generated/**
+    - lib/l10n/**
+    - build/**
+    - android/**
+    - ios/**
+
+linter:
+  rules:
+    # Internal app code — skip API docs requirement
+    public_member_api_docs: false
+    # Allow longer lines in Flutter (UI code naturally reads wider)
+    lines_longer_than_80_chars: false
+    # Allow print in debug builds (AnalyticsService uses it)
+    avoid_print: false
+    # Needed for Drift table definitions
+    avoid_classes_with_only_static_members: false
+    # Allow redundant arguments for clarity
+    avoid_redundant_argument_values: false
+    # pubspec groups dependencies by functional area (not alphabetically)
+    sort_pub_dependencies: false
