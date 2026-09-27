@@ -6,6 +6,7 @@ import 'package:bill_tracker/core/extensions/format_extensions.dart';
 import 'package:bill_tracker/core/storage/image_storage_service.dart';
 import 'package:bill_tracker/core/theme/app_theme.dart';
 import 'package:bill_tracker/core/utils/id_generator.dart';
+import 'package:bill_tracker/core/widgets/image_source_sheet.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/category.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/transaction.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/transaction_media.dart';
@@ -18,6 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+
 
 /// Screen for scanning paper/electronic receipts, extracting data with OCR, and saving transactions.
 class ReceiptScanScreen extends ConsumerStatefulWidget {
@@ -51,9 +53,9 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
     _noteController = TextEditingController();
     _occurredAt = DateTime.now();
 
-    // Trigger camera on launch
+    // Show source picker instead of auto-opening camera
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _captureReceipt(ImageSource.camera);
+      _showSourcePicker();
     });
   }
 
@@ -62,6 +64,17 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
     _merchantController.dispose();
     _noteController.dispose();
     super.dispose();
+  }
+
+  /// Shows the image source bottom sheet and triggers [_captureReceipt].
+  Future<void> _showSourcePicker() async {
+    final source = await ImageSourceSheet.show(context);
+    if (!mounted) return;
+    if (source == null) {
+      if (_imageFile == null) context.pop();
+      return;
+    }
+    await _captureReceipt(source);
   }
 
   Future<void> _captureReceipt(ImageSource source) async {
@@ -281,15 +294,9 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               FilledButton.icon(
-                onPressed: () => _captureReceipt(ImageSource.camera),
+                onPressed: _showSourcePicker,
                 icon: const Icon(Icons.document_scanner),
-                label: const Text('Chụp hóa đơn'),
-              ),
-              const Gap(12),
-              OutlinedButton.icon(
-                onPressed: () => _captureReceipt(ImageSource.gallery),
-                icon: const Icon(Icons.photo_library),
-                label: const Text('Chọn ảnh hóa đơn từ thư viện'),
+                label: const Text('Chọn nguồn ảnh hóa đơn'),
               ),
             ],
           ),
@@ -306,7 +313,7 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Chụp lại',
-            onPressed: () => _captureReceipt(ImageSource.camera),
+            onPressed: _showSourcePicker,
           ),
           TextButton(
             onPressed: _isSaving ? null : _save,

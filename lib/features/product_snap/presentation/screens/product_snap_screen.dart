@@ -5,6 +5,7 @@ import 'package:bill_tracker/core/di/injection_container.dart';
 import 'package:bill_tracker/core/storage/image_storage_service.dart';
 import 'package:bill_tracker/core/theme/app_theme.dart';
 import 'package:bill_tracker/core/utils/id_generator.dart';
+import 'package:bill_tracker/core/widgets/image_source_sheet.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/category.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/transaction.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/transaction_media.dart';
@@ -17,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+
 
 /// Screen for capturing a product snapshot, classifying it with AI, and saving an expense.
 class ProductSnapScreen extends ConsumerStatefulWidget {
@@ -44,9 +46,9 @@ class _ProductSnapScreenState extends ConsumerState<ProductSnapScreen> {
   @override
   void initState() {
     super.initState();
-    // Open camera immediately upon screen launch
+    // Show source picker after frame is ready
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _captureImage(ImageSource.camera);
+      _showSourcePicker();
     });
   }
 
@@ -55,6 +57,18 @@ class _ProductSnapScreenState extends ConsumerState<ProductSnapScreen> {
     _merchantController.dispose();
     _noteController.dispose();
     super.dispose();
+  }
+
+  /// Shows the image source bottom sheet and triggers [_captureImage].
+  Future<void> _showSourcePicker() async {
+    final source = await ImageSourceSheet.show(context);
+    if (!mounted) return;
+    if (source == null) {
+      // User dismissed without choosing → go back
+      if (_imageFile == null) context.pop();
+      return;
+    }
+    await _captureImage(source);
   }
 
   Future<void> _captureImage(ImageSource source) async {
@@ -223,21 +237,10 @@ class _ProductSnapScreenState extends ConsumerState<ProductSnapScreen> {
       return Scaffold(
         appBar: AppBar(title: const Text('Chụp sản phẩm')),
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              FilledButton.icon(
-                onPressed: () => _captureImage(ImageSource.camera),
-                icon: const Icon(Icons.camera_alt),
-                label: const Text('Mở camera chụp ảnh'),
-              ),
-              const Gap(12),
-              OutlinedButton.icon(
-                onPressed: () => _captureImage(ImageSource.gallery),
-                icon: const Icon(Icons.photo_library),
-                label: const Text('Chọn ảnh từ thư viện'),
-              ),
-            ],
+          child: FilledButton.icon(
+            onPressed: _showSourcePicker,
+            icon: const Icon(Icons.camera_alt_rounded),
+            label: const Text('Chọn nguồn ảnh sản phẩm'),
           ),
         ),
       );
@@ -256,7 +259,7 @@ class _ProductSnapScreenState extends ConsumerState<ProductSnapScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Chụp lại',
-            onPressed: () => _captureImage(ImageSource.camera),
+            onPressed: _showSourcePicker,
           ),
           TextButton(
             onPressed: _isSaving ? null : _saveTransaction,
