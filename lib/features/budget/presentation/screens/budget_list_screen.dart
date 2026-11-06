@@ -1,6 +1,7 @@
 import 'package:bill_tracker/core/router/app_router.dart';
 import 'package:bill_tracker/features/budget/presentation/providers/budget_providers.dart';
 import 'package:bill_tracker/features/budget/presentation/widgets/budget_card.dart';
+import 'package:bill_tracker/features/budget/presentation/widgets/budget_forecast_banner.dart';
 import 'package:bill_tracker/features/budget/presentation/widgets/budget_summary_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -92,6 +93,10 @@ class BudgetListScreen extends ConsumerWidget {
               children: [
                 // ── Overall Summary Card ─────────────────────────────
                 BudgetSummaryCard(progressList: progressList),
+                const Gap(8),
+
+                // ── End-of-period spend forecast warnings ────────────
+                BudgetForecastBanner(progressList: progressList),
                 const Gap(8),
 
                 // ── Section Title ────────────────────────────────────

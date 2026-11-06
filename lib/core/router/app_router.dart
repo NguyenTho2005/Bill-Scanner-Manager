@@ -292,7 +292,6 @@ class _MainShell extends StatelessWidget {
       ),
     );
   }
-
 }
 
 /// A styled card tile used in the "Add Transaction" bottom sheet.

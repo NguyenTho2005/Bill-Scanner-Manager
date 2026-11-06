@@ -20,7 +20,6 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
-
 /// Screen for scanning paper/electronic receipts, extracting data with OCR, and saving transactions.
 class ReceiptScanScreen extends ConsumerStatefulWidget {
   /// Creates [ReceiptScanScreen].

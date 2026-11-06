@@ -10,6 +10,8 @@ class TransactionFilter {
     this.categoryId,
     this.source,
     this.searchQuery,
+    this.minAmount,
+    this.maxAmount,
   });
 
   /// Optional start date (inclusive).
@@ -26,6 +28,12 @@ class TransactionFilter {
 
   /// Optional search text (matches merchant or note).
   final String? searchQuery;
+
+  /// Optional inclusive lower bound on the transaction amount.
+  final double? minAmount;
+
+  /// Optional inclusive upper bound on the transaction amount.
+  final double? maxAmount;
 }
 
 /// Repository interface for transactions and attached media.

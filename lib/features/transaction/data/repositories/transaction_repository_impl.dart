@@ -144,6 +144,16 @@ class TransactionRepositoryImpl implements TransactionRepository {
               _db.transactions.note.like(pattern),
         );
       }
+      if (filter.minAmount != null) {
+        query.where(
+          _db.transactions.amount.isBiggerOrEqualValue(filter.minAmount!),
+        );
+      }
+      if (filter.maxAmount != null) {
+        query.where(
+          _db.transactions.amount.isSmallerOrEqualValue(filter.maxAmount!),
+        );
+      }
     }
 
     query.orderBy([

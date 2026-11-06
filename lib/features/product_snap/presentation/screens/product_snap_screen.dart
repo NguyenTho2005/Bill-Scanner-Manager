@@ -19,7 +19,6 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
-
 /// Screen for capturing a product snapshot, classifying it with AI, and saving an expense.
 class ProductSnapScreen extends ConsumerStatefulWidget {
   /// Creates [ProductSnapScreen].

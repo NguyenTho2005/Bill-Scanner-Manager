@@ -1,5 +1,7 @@
 import 'package:bill_tracker/core/theme/app_theme.dart';
+import 'package:bill_tracker/features/transaction/domain/entities/category.dart';
 import 'package:bill_tracker/features/transaction/domain/repositories/transaction_repository.dart';
+import 'package:bill_tracker/features/transaction/domain/services/vietnamese_transaction_query_parser.dart';
 import 'package:bill_tracker/features/transaction/presentation/providers/category_providers.dart';
 import 'package:bill_tracker/features/transaction/presentation/providers/transaction_providers.dart';
 import 'package:flutter/material.dart';
@@ -42,12 +44,10 @@ class FeedFilterBar extends ConsumerWidget {
               ),
               onChanged: (val) {
                 ref.read(transactionFilterProvider.notifier).state =
-                    TransactionFilter(
-                  categoryId: currentFilter.categoryId,
-                  source: currentFilter.source,
-                  startDate: currentFilter.startDate,
-                  endDate: currentFilter.endDate,
-                  searchQuery: val.trim().isEmpty ? null : val.trim(),
+                    _buildFilterFromQuery(
+                  query: val.trim(),
+                  currentFilter: currentFilter,
+                  categories: categories,
                 );
               },
             ),
@@ -111,6 +111,46 @@ class FeedFilterBar extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  /// Builds a [TransactionFilter] from a free-text query.
+  ///
+  /// Vietnamese phrases like "ăn uống tháng này", "WinMart tháng trước",
+  /// "trên 200 nghìn" or "tuần này" are translated into local date/amount/
+  /// category filters. Queries the parser cannot understand fall back to a
+  /// plain merchant/note keyword search, exactly like before.
+  TransactionFilter _buildFilterFromQuery({
+    required String query,
+    required TransactionFilter currentFilter,
+    required List<Category> categories,
+  }) {
+    if (query.isEmpty) {
+      return TransactionFilter(
+        categoryId: currentFilter.categoryId,
+        source: currentFilter.source,
+      );
+    }
+
+    final parsed = VietnameseTransactionQueryParser.parse(query);
+
+    final keyword = parsed.keyword.trim();
+    final categoryId =
+        VietnameseTransactionQueryParser.resolveCategoryId(keyword, categories);
+
+    return TransactionFilter(
+      startDate: parsed.startDate ?? currentFilter.startDate,
+      endDate: parsed.endDate ?? currentFilter.endDate,
+      // Parsed category wins; unresolved keywords keep chip selection.
+      categoryId: categoryId ?? currentFilter.categoryId,
+      source: currentFilter.source,
+      minAmount: parsed.minAmount ?? currentFilter.minAmount,
+      maxAmount: parsed.maxAmount ?? currentFilter.maxAmount,
+      // When the keyword already resolved to a category, drop it from the
+      // text search — otherwise the AND-combined merchant/note match would
+      // hide everything. Fallback unhandled text stays a plain
+      // merchant/note keyword search.
+      searchQuery: categoryId != null || keyword.isEmpty ? null : keyword,
     );
   }
 }

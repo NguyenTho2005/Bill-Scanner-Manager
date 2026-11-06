@@ -2,6 +2,8 @@ import 'package:bill_tracker/core/extensions/format_extensions.dart';
 import 'package:bill_tracker/core/theme/app_theme.dart';
 import 'package:bill_tracker/core/utils/id_generator.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/transaction.dart';
+import 'package:bill_tracker/features/transaction/domain/repositories/transaction_repository.dart';
+import 'package:bill_tracker/features/transaction/domain/services/duplicate_detector.dart';
 import 'package:bill_tracker/features/transaction/presentation/providers/category_providers.dart';
 import 'package:bill_tracker/features/transaction/presentation/providers/transaction_providers.dart';
 import 'package:bill_tracker/features/transaction/presentation/widgets/amount_numpad.dart';
@@ -104,6 +106,47 @@ class _CreateEditTransactionScreenState
     }
   }
 
+  /// Asks the user what to do when the new transaction looks like an
+  /// existing one (same amount, near-identical merchant, within 24 hours).
+  /// Returns true when it is safe to continue saving.
+  Future<bool> _confirmNotDuplicate(Transaction transaction) async {
+    try {
+      final repo = ref.read(transactionRepositoryProvider);
+      final nearby = await repo.getTransactions(
+        filter: TransactionFilter(
+          startDate: transaction.occurredAt.subtract(const Duration(hours: 24)),
+          endDate: transaction.occurredAt.add(const Duration(hours: 24)),
+        ),
+      );
+      final duplicates = const DuplicateDetector().findDuplicates(
+        candidate: transaction,
+        existing: nearby,
+      );
+      if (duplicates.isEmpty) return true;
+      if (!mounted) return false;
+
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => _DuplicateWarningDialog(
+          duplicates: duplicates,
+          categoryName: _categoryNameFor(transaction.categoryId),
+        ),
+      );
+      return proceed ?? false;
+    } on Exception catch (_) {
+      // Detection is best-effort; never block regular saving.
+      return true;
+    }
+  }
+
+  String _categoryNameFor(String? categoryId) {
+    final categories = ref.read(categoriesListProvider);
+    for (final category in categories) {
+      if (category.id == categoryId) return category.name;
+    }
+    return 'Giao dịch';
+  }
+
   Future<void> _save() async {
     if (_amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -138,6 +181,16 @@ class _CreateEditTransactionScreenState
       createdAt: widget.initialTransaction?.createdAt ?? now,
       updatedAt: now,
     );
+
+    // Local duplicate check before performing any write. The user decides:
+    // the flow never deletes or changes existing data on its own.
+    if (!_isEditing) {
+      final confirmed = await _confirmNotDuplicate(transaction);
+      if (!confirmed) {
+        if (mounted) setState(() => _isSaving = false);
+        return;
+      }
+    }
 
     final controller = ref.read(transactionControllerProvider.notifier);
     final success = _isEditing
@@ -324,6 +377,86 @@ class _CreateEditTransactionScreenState
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Warning dialog listing potential duplicate transactions.
+class _DuplicateWarningDialog extends StatelessWidget {
+  const _DuplicateWarningDialog({
+    required this.duplicates,
+    required this.categoryName,
+  });
+
+  final List<DuplicateMatch> duplicates;
+  final String categoryName;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return AlertDialog(
+      icon: Icon(
+        Icons.warning_amber_rounded,
+        color: colorScheme.error,
+        size: 32,
+      ),
+      title: const Text('Phát hiện giao dịch trùng'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Đã có giao dịch tương tự trong vòng 24 giờ '
+              '(cùng số tiền, cửa hàng gần giống):',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const Gap(12),
+            for (var i = 0; i < duplicates.length && i < 3; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.receipt_long_rounded,
+                      size: 18,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    const Gap(8),
+                    Expanded(
+                      child: Text(
+                        '${duplicates[i].existing.merchant ?? categoryName} '
+                        '· ${duplicates[i].existing.amount.toVnd()} · '
+                        '${duplicates[i].existing.occurredAt.toDisplayDateTime()}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const Gap(12),
+            Text(
+              'Bạn vẫn muốn lưu giao dịch này chứ?',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Hủy'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Vẫn lưu'),
+        ),
+      ],
     );
   }
 }
