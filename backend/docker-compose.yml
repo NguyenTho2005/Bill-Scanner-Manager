@@ -1,0 +1,113 @@
+version: "3.9"
+
+services:
+  # ── BillTracker API ──────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: billtracker-api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://billtracker:billtracker_dev@postgres:5432/billtracker"
+      S3_ENDPOINT: "http://minio:9000"
+      S3_BUCKET: "billtracker-media"
+      S3_ACCESS_KEY: "minioadmin"
+      S3_SECRET_KEY: "minioadmin"
+      S3_REGION: "us-east-1"
+      JWT_ALGORITHM: "RS256"
+      # Dev mode: generates ephemeral RSA key pair at startup (DO NOT use in prod)
+      DEV_AUTH_ENABLED: "true"
+      DEV_AUTH_MOCK_ISSUER: "http://localhost:8000"
+      SECRET_KEY: "dev-only-secret-key-change-in-production"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+      REFRESH_TOKEN_EXPIRE_DAYS: "90"
+      ENVIRONMENT: "development"
+      LOG_LEVEL: "INFO"
+      RATE_LIMIT_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - billtracker-net
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: billtracker-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: billtracker
+      POSTGRES_PASSWORD: billtracker_dev
+      POSTGRES_DB: billtracker
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billtracker -d billtracker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - billtracker-net
+
+  # ── MinIO (S3-compatible object storage) ──────────────────────────────────
+  minio:
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+    container_name: billtracker-minio
+    ports:
+      - "9000:9000"    # S3 API
+      - "9001:9001"    # MinIO Console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - billtracker-net
+
+  # ── MinIO bucket setup (run once) ─────────────────────────────────────────
+  minio-setup:
+    image: bitnamilegacy/minio-client:latest
+    container_name: billtracker-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        MC=/opt/bitnami/minio-client/bin/mc;
+        $$MC alias set myminio http://minio:9000 minioadmin minioadmin &&
+        $$MC mb --ignore-existing myminio/billtracker-media &&
+        $$MC anonymous set none myminio/billtracker-media &&
+        echo 'MinIO bucket setup complete'
+      "
+    networks:
+      - billtracker-net
+
+volumes:
+  postgres_data:
+  minio_data:
+
+networks:
+  billtracker-net:
+    driver: bridge

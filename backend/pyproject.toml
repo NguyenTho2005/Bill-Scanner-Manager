@@ -1,0 +1,107 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "billtracker-backend"
+version = "0.1.0"
+description = "BillTracker Cloud Backup & Sync Backend — P1"
+requires-python = ">=3.12"
+
+dependencies = [
+    # Web framework
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.32.1",
+    "python-multipart==0.0.18",
+
+    # Async HTTP
+    "httpx==0.28.1",
+
+    # Database
+    "sqlalchemy[asyncio]==2.0.36",
+    "asyncpg==0.30.0",
+    "alembic==1.14.0",
+
+    # Validation
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.0",
+    "email-validator==2.2.0",
+
+    # Auth / JWT
+    "PyJWT==2.10.1",
+    "cryptography==44.0.0",
+    "passlib[bcrypt]==1.7.4",
+
+    # OIDC
+    "jwcrypto==1.5.6",
+
+    # Object storage (S3-compatible)
+    "aiobotocore==2.15.2",
+    "boto3==1.35.36",
+
+    # Logging
+    "structlog==24.4.0",
+
+    # Rate limiting (in-process, Redis optional for P2)
+    "slowapi==0.1.9",
+
+    # Utilities
+    "python-ulid==3.0.0",
+    "python-dotenv==1.0.1",
+    "packaging>=24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+    "pytest-asyncio==0.24.0",
+    "pytest-cov==6.0.0",
+    "httpx==0.28.1",
+    "asgi-lifespan==2.1.0",
+    "factory-boy==3.3.1",
+    "faker==33.1.0",
+    "ruff==0.8.6",
+    "mypy==1.14.1",
+    "types-passlib==1.7.7.20240819",
+    "moto[s3]==5.0.22",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "S", "B", "A", "C4", "PT"]
+ignore = [
+    "S101",  # assert allowed in tests
+    "S106",  # hardcoded password in test fixtures
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S106", "S105"]
+"app/**/router.py" = ["B008"]  # FastAPI dependency-in-default pattern (B.1)
+"app/dependencies.py" = ["B008"]  # same FastAPI pattern
+"app/core/errors.py" = ["S105"]  # enum code strings flagged as secrets by S105
+"app/modules/auth/schemas.py" = ["S105"]  # token_type string flagged by S105
+"app/modules/ocr/router.py" = ["E501"]  # generated endpoint table, long lines (E.4)
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]  # allows bare `pytest` and `make test` to import app/
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["tests/*", "migrations/*", "scripts/*"]
+
+[tool.coverage.report]
+fail_under = 80
