@@ -1,11 +1,14 @@
 import 'dart:io';
 
+import 'package:bill_tracker/core/ai/mlkit_price_ocr_service.dart';
+import 'package:bill_tracker/core/ai/price_text_extractor.dart';
 import 'package:bill_tracker/core/ai/product_classifier.dart';
 import 'package:bill_tracker/core/di/injection_container.dart';
 import 'package:bill_tracker/core/storage/image_storage_service.dart';
 import 'package:bill_tracker/core/theme/app_theme.dart';
 import 'package:bill_tracker/core/utils/id_generator.dart';
 import 'package:bill_tracker/core/widgets/image_source_sheet.dart';
+import 'package:bill_tracker/features/settings/presentation/providers/settings_providers.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/category.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/transaction.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/transaction_media.dart';
@@ -36,8 +39,13 @@ class _ProductSnapScreenState extends ConsumerState<ProductSnapScreen> {
   File? _imageFile;
   StoredImageResult? _storedResult;
   ProductClassificationResult? _classificationResult;
+  PriceOcrResult? _priceOcrResult;
 
   double _amount = 0;
+
+  /// True when [_amount] was auto-filled by price OCR (§4.6 #15). The value
+  /// stays fully editable; AI never locks or overwrites a user edit.
+  bool _amountAutoFilledByOcr = false;
   String? _selectedCategoryId;
   final TextEditingController _merchantController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
@@ -94,12 +102,12 @@ class _ProductSnapScreenState extends ConsumerState<ProductSnapScreen> {
 
       final bytes = await _imageFile!.readAsBytes();
 
-      // Process & store image
+      // Process & store image — honour the privacy setting (§4.6 #17).
       final storage = getIt<ImageStorageService>();
       final storedResult = await storage.processAndStoreImage(
         imageBytes: bytes,
         filePrefix: 'prod',
-        keepOriginal: false,
+        keepOriginal: ref.read(keepOriginalPhotosProvider),
       );
 
       // Classify with AI
@@ -107,15 +115,36 @@ class _ProductSnapScreenState extends ConsumerState<ProductSnapScreen> {
       final classification =
           await classifier.classifyImage(storedResult.compressedPath);
 
+      // Price OCR on the same stored image (§4.6 #15). Failure is
+      // non-fatal — manual amount entry stays the fallback.
+      PriceOcrResult? priceOcr;
+      try {
+        final priceService = getIt<MlKitPriceOcrService>();
+        priceOcr = await priceService.readPrices(storedResult.compressedPath);
+      } on Exception catch (_) {
+        priceOcr = null;
+      }
+
       if (!mounted) return;
+
+      // Auto-fill the numpad only when exactly one high-confidence VND
+      // price is found; otherwise keep manual entry.
+      final confident = priceOcr?.confidentValue;
 
       setState(() {
         _storedResult = storedResult;
         _classificationResult = classification;
+        _priceOcrResult = priceOcr;
         _isProcessing = false;
         // Pre-select AI suggested category if high confidence
         if (classification.suggestedCategoryId != null) {
           _selectedCategoryId = classification.suggestedCategoryId;
+        }
+        if (confident != null) {
+          _amount = confident.value;
+          _amountAutoFilledByOcr = true;
+        } else {
+          _amountAutoFilledByOcr = false;
         }
       });
     } on Exception catch (e) {
@@ -186,6 +215,24 @@ class _ProductSnapScreenState extends ConsumerState<ProductSnapScreen> {
       transaction: transaction,
       media: media,
     );
+
+    // Persist the AI inference audit row (labels + price OCR candidates in
+    // extracted_amounts_json, §4.6 #15 / KPI OCR >= 90%). Non-fatal.
+    if (success &&
+        media != null &&
+        _classificationResult != null) {
+      try {
+        final repo = ref.read(transactionRepositoryProvider);
+        await repo.saveProductSnapInference(
+          mediaId: media.id,
+          classification: _classificationResult!,
+          priceOcr: _priceOcrResult,
+          priceOcrModelVersion: getIt<MlKitPriceOcrService>().modelVersion,
+        );
+      } on Exception catch (_) {
+        // Inference audit must not block saving the expense.
+      }
+    }
 
     if (mounted) {
       setState(() => _isSaving = false);
@@ -356,9 +403,42 @@ class _ProductSnapScreenState extends ConsumerState<ProductSnapScreen> {
             ),
 
             // ── Amount Numpad ─────────────────────────────────────────
-            AmountNumpad(
-              amount: _amount,
-              onAmountChanged: (val) => setState(() => _amount = val),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_amountAutoFilledByOcr)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 13,
+                          color: colorScheme.primary,
+                        ),
+                        const Gap(6),
+                        Expanded(
+                          child: Text(
+                            'Giá tự động nhận diện từ nhãn — vui lòng kiểm tra & sửa nếu cần',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.primary,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                AmountNumpad(
+                  amount: _amount,
+                  onAmountChanged: (val) => setState(() {
+                    _amount = val;
+                    // User edited the amount: the OCR prefill is replaced
+                    // and must never be re-applied (tắc #5, §4.3).
+                    _amountAutoFilledByOcr = false;
+                  }),
+                ),
+              ],
             ),
 
             const Divider(height: 24),

@@ -122,11 +122,18 @@ class BudgetCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          budget.period == 'monthly'
-                              ? 'Ngân sách hàng tháng'
-                              : 'Ngân sách theo chu kỳ',
+                          budget.isShared
+                              ? 'Ngân sách chung (Nhóm)'
+                              : (budget.period == 'monthly'
+                                  ? 'Ngân sách hàng tháng'
+                                  : 'Ngân sách theo chu kỳ'),
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
+                            color: budget.isShared
+                                ? colorScheme.primary
+                                : colorScheme.onSurfaceVariant,
+                            fontWeight: budget.isShared
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                         ),
                       ],

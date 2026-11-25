@@ -2,8 +2,12 @@ import 'package:bill_tracker/core/analytics/analytics_service.dart';
 import 'package:bill_tracker/core/di/injection_container.dart';
 import 'package:bill_tracker/core/router/app_router.dart';
 import 'package:bill_tracker/core/theme/app_theme.dart';
+import 'package:bill_tracker/features/assistant/presentation/widgets/assistant_bubble.dart';
+import 'package:bill_tracker/features/assistant/presentation/widgets/assistant_settings_sheet.dart';
 import 'package:bill_tracker/features/settings/presentation/providers/settings_providers.dart';
 import 'package:bill_tracker/features/transaction/presentation/providers/transaction_providers.dart';
+import 'package:bill_tracker/l10n/app_localizations.dart';
+import 'package:bill_tracker/l10n/app_localizations_vi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
@@ -205,6 +209,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final l10n =
+        Localizations.of<AppLocalizations>(context, AppLocalizations) ??
+            AppLocalizationsVi();
     final storageAsync = ref.watch(storageUsageProvider);
     final keepOriginal = ref.watch(keepOriginalPhotosProvider);
     final cloudSync = ref.watch(cloudSyncEnabledProvider);
@@ -212,21 +219,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cài đặt & Dữ liệu'),
+        title: Text(l10n.settingsTitle),
       ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 96, top: 12),
         children: [
+          // ── Section 0: Assistant (on-device by default) ─────────────
+          _SectionHeader(title: l10n.settingsAssistantSection, theme: theme),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.auto_awesome_rounded),
+                  title: Text(l10n.settingsAssistantConfig),
+                  subtitle: Text(l10n.settingsAssistantSubtitle),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => AssistantSettingsSheet.show(context),
+                ),
+                const Divider(height: 1),
+                const AssistantEntryTile(),
+              ],
+            ),
+          ),
+
           // ── Section 1: Security & Privacy ───────────────────────────
-          _SectionHeader(title: 'Bảo mật & Quyền riêng tư', theme: theme),
+          _SectionHeader(title: l10n.settingsSecuritySection, theme: theme),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Column(
               children: [
                 SwitchListTile(
                   secondary: const Icon(Icons.fingerprint_rounded),
-                  title: const Text('Khóa sinh trắc học / PIN'),
-                  subtitle: const Text('Yêu cầu Face ID/Vân tay khi mở app'),
+                  title: Text(l10n.settingsBiometricLock),
+                  subtitle: Text(l10n.settingsBiometricSubtitle),
                   value: isBiometricAsync.valueOrNull ?? false,
                   onChanged: (val) async {
                     final security = ref.read(securityServiceProvider);
@@ -237,18 +263,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.lock_reset_rounded),
-                  title: const Text('Thiết lập lại mã PIN'),
-                  subtitle: const Text('Đổi mã PIN 4 chữ số bảo mật'),
+                  title: Text(l10n.settingsResetPin),
+                  subtitle: Text(l10n.settingsResetPinSubtitle),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => context.push(Routes.lock),
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
                   secondary: const Icon(Icons.photo_library_outlined),
-                  title: const Text('Lưu ảnh gốc vào thư viện'),
-                  subtitle: const Text(
-                    'Mặc định chỉ lưu ảnh nén tối ưu (2048px) để tiết kiệm bộ nhớ',
-                  ),
+                  title: Text(l10n.settingsKeepOriginalPhotos),
+                  subtitle: Text(l10n.settingsKeepOriginalSubtitle),
                   value: keepOriginal,
                   onChanged: (val) {
                     ref.read(keepOriginalPhotosProvider.notifier).state = val;
@@ -260,19 +284,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const Gap(20),
 
           // ── Section 2: Storage & Backup ─────────────────────────────
-          _SectionHeader(title: 'Dung lượng & Sao lưu', theme: theme),
+          _SectionHeader(title: l10n.settingsStorageSection, theme: theme),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Column(
               children: [
                 ListTile(
                   leading: const Icon(Icons.pie_chart_outline_rounded),
-                  title: const Text('Bộ nhớ đã sử dụng'),
+                  title: Text(l10n.settingsStorageUsed),
                   subtitle: storageAsync.when(
                     data: (info) => Text(
                       'Ảnh: ${info.formattedImagesSize} (${info.imagesCount} tệp) · CSDL: ${info.formattedDatabaseSize}',
                     ),
-                    loading: () => const Text('Đang tính toán...'),
+                    loading: () => Text(l10n.loading),
                     error: (_, __) => const Text('Không thể đọc dung lượng'),
                   ),
                   trailing: storageAsync.when(
@@ -290,8 +314,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.table_chart_outlined),
-                  title: const Text('Xuất dữ liệu Excel / CSV'),
-                  subtitle: const Text('Mở bằng Excel hoặc Google Sheets'),
+                  title: Text(l10n.settingsExportCsv),
+                  subtitle: Text(l10n.settingsExportCsvSubtitle),
                   trailing: _isProcessing
                       ? const SizedBox(
                           width: 20,
@@ -304,18 +328,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.backup_outlined),
-                  title: const Text('Sao lưu toàn bộ (JSON)'),
-                  subtitle: const Text(
-                    'Xuất toàn bộ giao dịch, danh mục, ngân sách',
-                  ),
+                  title: Text(l10n.settingsExportJson),
+                  subtitle: Text(l10n.settingsExportJsonSubtitle),
                   trailing: const Icon(Icons.file_download_outlined),
                   onTap: _isProcessing ? null : _exportJson,
                 ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.settings_backup_restore_rounded),
-                  title: const Text('Khôi phục từ file sao lưu'),
-                  subtitle: const Text('Nhập dữ liệu từ bản sao lưu JSON'),
+                  title: Text(l10n.settingsImportJson),
+                  subtitle: Text(l10n.settingsImportJsonSubtitle),
                   trailing: const Icon(Icons.file_upload_outlined),
                   onTap: _isProcessing ? null : _showImportDialog,
                 ),
@@ -325,7 +347,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const Gap(20),
 
           // ── Section 3: Cloud Sync ───────────────────────────────────
-          _SectionHeader(title: 'Đồng bộ hóa đám mây (Tùy chọn)', theme: theme),
+          _SectionHeader(title: l10n.settingsCloudSyncSection, theme: theme),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Column(
@@ -349,7 +371,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       const Gap(12),
                       Expanded(
                         child: Text(
-                          'Chế độ Local-first an toàn',
+                          l10n.settingsLocalFirstTitle,
                           style: theme.textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w700,
                           ),
@@ -361,7 +383,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
-                    'Mọi dữ liệu chi tiêu và hình ảnh được lưu trữ an toàn 100% trên thiết bị của bạn. Ứng dụng hoạt động mượt mà hoàn toàn không cần Internet.',
+                    l10n.settingsLocalFirstSubtitle,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -370,10 +392,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const Gap(8),
                 SwitchListTile(
                   secondary: const Icon(Icons.cloud_sync_outlined),
-                  title: const Text('Bật đồng bộ đám mây'),
-                  subtitle: const Text(
-                    'Tùy chọn: Đồng bộ đa thiết bị khi có kết nối',
-                  ),
+                  title: Text(l10n.settingsEnableCloudSync),
+                  subtitle: Text(l10n.settingsEnableCloudSyncSubtitle),
                   value: cloudSync,
                   onChanged: (val) {
                     ref.read(cloudSyncEnabledProvider.notifier).state = val;
@@ -390,7 +410,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const Gap(20),
 
           // ── Section 4: Danger Zone ──────────────────────────────────
-          _SectionHeader(title: 'Vùng nguy hiểm', theme: theme),
+          _SectionHeader(title: l10n.settingsDangerZone, theme: theme),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             color: colorScheme.errorContainer.withAlpha(40),
@@ -406,15 +426,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 color: colorScheme.error,
               ),
               title: Text(
-                'Xóa toàn bộ dữ liệu',
+                l10n.settingsDeleteAll,
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   color: colorScheme.error,
                 ),
               ),
-              subtitle: const Text(
-                'Xóa sạch mọi giao dịch, hình ảnh và ngân sách khỏi máy',
-              ),
+              subtitle: Text(l10n.settingsDeleteAllSubtitle),
               trailing: Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: 16,
@@ -430,7 +448,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Column(
               children: [
                 Text(
-                  'BillTracker',
+                  l10n.appName,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),

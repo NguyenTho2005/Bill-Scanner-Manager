@@ -11,6 +11,16 @@ abstract class NotificationService {
     required String title,
     required String body,
   });
+
+  /// Shows a notification when a recurring transaction was created
+  /// automatically. [payload] carries the transaction id so the client can
+  /// route the user to an edit screen (§4.7-recurring).
+  Future<void> showRecurringTransactionAlert({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+  });
 }
 
 /// Implementation using [FlutterLocalNotificationsPlugin].
@@ -21,6 +31,18 @@ class LocalNotificationService implements NotificationService {
 
   final FlutterLocalNotificationsPlugin _plugin;
   bool _isInitialized = false;
+
+  /// Transaction IDs of recurring-alerts tapped by the user; the feed
+  /// screen routes the user to these transactions on the next launch
+  /// (consumer must call [takeRecurringAlertPayloads]).
+  static final List<String> recurringAlertPayloads = [];
+
+  /// Returns and clears pending recurring-alert tap payloads.
+  static List<String> takeRecurringAlertPayloads() {
+    final out = recurringAlertPayloads.toList();
+    recurringAlertPayloads.clear();
+    return out;
+  }
 
   @override
   Future<void> init() async {
@@ -66,6 +88,38 @@ class LocalNotificationService implements NotificationService {
         iOS: darwinDetails,
       );
       await _plugin.show(id, title, body, details);
+    } on Object catch (_) {
+      // Gracefully ignore native delivery errors in non-mobile test environments
+    }
+  }
+
+  @override
+  Future<void> showRecurringTransactionAlert({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    if (!_isInitialized) {
+      await init();
+    }
+    try {
+      if (payload != null) {
+        recurringAlertPayloads.add(payload);
+      }
+      const androidDetails = AndroidNotificationDetails(
+        'recurring_alerts',
+        'Giao dịch định kịt',
+        channelDescription: 'Thông báo giao dịch tự động theo định kịt',
+        importance: Importance.defaultImportance,
+        priority: Priority.defaultPriority,
+      );
+      const darwinDetails = DarwinNotificationDetails();
+      const details = NotificationDetails(
+        android: androidDetails,
+        iOS: darwinDetails,
+      );
+      await _plugin.show(id, title, body, details, payload: payload);
     } on Object catch (_) {
       // Gracefully ignore native delivery errors in non-mobile test environments
     }

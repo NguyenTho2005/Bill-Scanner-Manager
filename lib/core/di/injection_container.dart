@@ -1,3 +1,4 @@
+import 'package:bill_tracker/core/ai/mlkit_price_ocr_service.dart';
 import 'package:bill_tracker/core/ai/mlkit_product_classifier.dart';
 import 'package:bill_tracker/core/ai/mlkit_receipt_ocr_service.dart';
 import 'package:bill_tracker/core/ai/product_classifier.dart';
@@ -9,14 +10,25 @@ import 'package:bill_tracker/core/notifications/notification_service.dart';
 import 'package:bill_tracker/core/storage/data_management_service.dart';
 import 'package:bill_tracker/core/storage/image_storage_service.dart';
 import 'package:bill_tracker/core/storage/local_image_storage_service.dart';
+import 'package:bill_tracker/features/assistant/data/repositories/assistant_repository_impl.dart';
+import 'package:bill_tracker/features/assistant/data/services/assistant_settings_store.dart';
+import 'package:bill_tracker/features/assistant/data/services/provider_aware_llm_client.dart';
+import 'package:bill_tracker/features/assistant/domain/repositories/assistant_repository.dart';
+import 'package:bill_tracker/features/assistant/domain/services/llm_client.dart';
 import 'package:bill_tracker/features/budget/data/repositories/budget_repository_impl.dart';
 import 'package:bill_tracker/features/budget/domain/repositories/budget_repository.dart';
+import 'package:bill_tracker/features/households/data/repositories/household_repository_impl.dart';
+import 'package:bill_tracker/features/households/domain/repositories/household_repository.dart';
 import 'package:bill_tracker/features/reports/data/repositories/report_repository_impl.dart';
 import 'package:bill_tracker/features/reports/domain/repositories/report_repository.dart';
 import 'package:bill_tracker/features/transaction/data/repositories/category_repository_impl.dart';
+import 'package:bill_tracker/features/transaction/data/repositories/recurring_transaction_repository_impl.dart';
 import 'package:bill_tracker/features/transaction/data/repositories/transaction_repository_impl.dart';
+import 'package:bill_tracker/features/transaction/data/services/recurring_transaction_service_impl.dart';
 import 'package:bill_tracker/features/transaction/domain/repositories/category_repository.dart';
+import 'package:bill_tracker/features/transaction/domain/repositories/recurring_transaction_repository.dart';
 import 'package:bill_tracker/features/transaction/domain/repositories/transaction_repository.dart';
+import 'package:bill_tracker/features/transaction/domain/services/recurring_transaction_service.dart';
 import 'package:get_it/get_it.dart';
 
 /// Global GetIt service locator instance.
@@ -55,6 +67,24 @@ Future<void> configureDependencies({String? environment}) async {
     );
   }
 
+  // Recurring transaction repository
+  if (!getIt.isRegistered<RecurringTransactionRepository>()) {
+    getIt.registerLazySingleton<RecurringTransactionRepository>(
+      () => RecurringTransactionRepositoryImpl(getIt<AppDatabase>()),
+    );
+  }
+
+  // Recurring transaction service
+  if (!getIt.isRegistered<RecurringTransactionService>()) {
+    getIt.registerLazySingleton<RecurringTransactionService>(
+      () => RecurringTransactionServiceImpl(
+        recurringRepo: getIt<RecurringTransactionRepository>(),
+        txRepo: getIt<TransactionRepository>(),
+        notificationService: getIt<NotificationService>(),
+      ),
+    );
+  }
+
   // Image storage service
   if (!getIt.isRegistered<ImageStorageService>()) {
     getIt.registerLazySingleton<ImageStorageService>(
@@ -76,6 +106,13 @@ Future<void> configureDependencies({String? environment}) async {
     );
   }
 
+  // Price OCR service for Product Snap (on-device ML Kit, §4.6 #15)
+  if (!getIt.isRegistered<MlKitPriceOcrService>()) {
+    getIt.registerLazySingleton<MlKitPriceOcrService>(
+      MlKitPriceOcrService.new,
+    );
+  }
+
   // Analytics service (Console in dev)
   if (!getIt.isRegistered<AnalyticsService>()) {
     getIt.registerLazySingleton<AnalyticsService>(
@@ -94,6 +131,13 @@ Future<void> configureDependencies({String? environment}) async {
     );
   }
 
+  // Household repository (shared budgets & members)
+  if (!getIt.isRegistered<HouseholdRepository>()) {
+    getIt.registerLazySingleton<HouseholdRepository>(
+      () => HouseholdRepositoryImpl(db: getIt<AppDatabase>()),
+    );
+  }
+
   // Report repository
   if (!getIt.isRegistered<ReportRepository>()) {
     getIt.registerLazySingleton<ReportRepository>(
@@ -107,6 +151,30 @@ Future<void> configureDependencies({String? environment}) async {
       () => DataManagementService(
         db: getIt<AppDatabase>(),
         imageStorage: getIt<ImageStorageService>(),
+      ),
+    );
+  }
+
+  // Assistant settings (secure storage; API key never touches SQLite)
+  if (!getIt.isRegistered<AssistantSettingsStore>()) {
+    getIt.registerLazySingleton<AssistantSettingsStore>(
+      SecureAssistantSettingsStore.new,
+    );
+  }
+
+  // Optional cloud LLM client (OpenAI-compatible or Gemini, opt-in)
+  if (!getIt.isRegistered<LlmClient>()) {
+    getIt.registerLazySingleton<LlmClient>(
+      ProviderAwareLlmClient.new,
+    );
+  }
+
+  // Assistant chat history repository
+  if (!getIt.isRegistered<AssistantRepository>()) {
+    getIt.registerLazySingleton<AssistantRepository>(
+      () => AssistantRepositoryImpl(
+        db: getIt<AppDatabase>(),
+        settingsStore: getIt<AssistantSettingsStore>(),
       ),
     );
   }

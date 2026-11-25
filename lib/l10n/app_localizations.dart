@@ -441,6 +441,168 @@ abstract class AppLocalizations {
   /// In vi, this message translates to:
   /// **'Tháng trước'**
   String get lastMonth;
+
+  /// No description provided for @settingsTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cài đặt & Dữ liệu'**
+  String get settingsTitle;
+
+  /// No description provided for @settingsAssistantSection.
+  ///
+  /// In vi, this message translates to:
+  /// **'Trợ lý chi tiêu'**
+  String get settingsAssistantSection;
+
+  /// No description provided for @settingsAssistantConfig.
+  ///
+  /// In vi, this message translates to:
+  /// **'Cấu hình trợ lý'**
+  String get settingsAssistantConfig;
+
+  /// No description provided for @settingsAssistantSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mặc định offline · Cloud AI là tuỳ chọn (BYO key)'**
+  String get settingsAssistantSubtitle;
+
+  /// No description provided for @settingsSecuritySection.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bảo mật & Quyền riêng tư'**
+  String get settingsSecuritySection;
+
+  /// No description provided for @settingsBiometricLock.
+  ///
+  /// In vi, this message translates to:
+  /// **'Khóa sinh trắc học / PIN'**
+  String get settingsBiometricLock;
+
+  /// No description provided for @settingsBiometricSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Yêu cầu Face ID/Vân tay khi mở app'**
+  String get settingsBiometricSubtitle;
+
+  /// No description provided for @settingsResetPin.
+  ///
+  /// In vi, this message translates to:
+  /// **'Thiết lập lại mã PIN'**
+  String get settingsResetPin;
+
+  /// No description provided for @settingsResetPinSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đổi mã PIN 4 chữ số bảo mật'**
+  String get settingsResetPinSubtitle;
+
+  /// No description provided for @settingsKeepOriginalPhotos.
+  ///
+  /// In vi, this message translates to:
+  /// **'Lưu ảnh gốc vào thư viện'**
+  String get settingsKeepOriginalPhotos;
+
+  /// No description provided for @settingsKeepOriginalSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mặc định chỉ lưu ảnh nén tối ưu (2048px) để tiết kiệm bộ nhớ'**
+  String get settingsKeepOriginalSubtitle;
+
+  /// No description provided for @settingsStorageSection.
+  ///
+  /// In vi, this message translates to:
+  /// **'Dung lượng & Sao lưu'**
+  String get settingsStorageSection;
+
+  /// No description provided for @settingsStorageUsed.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bộ nhớ đã sử dụng'**
+  String get settingsStorageUsed;
+
+  /// No description provided for @settingsExportCsv.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xuất dữ liệu Excel / CSV'**
+  String get settingsExportCsv;
+
+  /// No description provided for @settingsExportCsvSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mở bằng Excel hoặc Google Sheets'**
+  String get settingsExportCsvSubtitle;
+
+  /// No description provided for @settingsExportJson.
+  ///
+  /// In vi, this message translates to:
+  /// **'Sao lưu toàn bộ (JSON)'**
+  String get settingsExportJson;
+
+  /// No description provided for @settingsExportJsonSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xuất toàn bộ giao dịch, danh mục, ngân sách'**
+  String get settingsExportJsonSubtitle;
+
+  /// No description provided for @settingsImportJson.
+  ///
+  /// In vi, this message translates to:
+  /// **'Khôi phục từ file sao lưu'**
+  String get settingsImportJson;
+
+  /// No description provided for @settingsImportJsonSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Nhập dữ liệu từ bản sao lưu JSON'**
+  String get settingsImportJsonSubtitle;
+
+  /// No description provided for @settingsCloudSyncSection.
+  ///
+  /// In vi, this message translates to:
+  /// **'Đồng bộ hóa đám mây (Tùy chọn)'**
+  String get settingsCloudSyncSection;
+
+  /// No description provided for @settingsLocalFirstTitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Chế độ Local-first an toàn'**
+  String get settingsLocalFirstTitle;
+
+  /// No description provided for @settingsLocalFirstSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Mọi dữ liệu chi tiêu và hình ảnh được lưu trữ an toàn 100% trên thiết bị của bạn. Ứng dụng hoạt động mượt mà hoàn toàn không cần Internet.'**
+  String get settingsLocalFirstSubtitle;
+
+  /// No description provided for @settingsEnableCloudSync.
+  ///
+  /// In vi, this message translates to:
+  /// **'Bật đồng bộ đám mây'**
+  String get settingsEnableCloudSync;
+
+  /// No description provided for @settingsEnableCloudSyncSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Tùy chọn: Đồng bộ đa thiết bị khi có kết nối'**
+  String get settingsEnableCloudSyncSubtitle;
+
+  /// No description provided for @settingsDangerZone.
+  ///
+  /// In vi, this message translates to:
+  /// **'Vùng nguy hiểm'**
+  String get settingsDangerZone;
+
+  /// No description provided for @settingsDeleteAll.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xóa toàn bộ dữ liệu'**
+  String get settingsDeleteAll;
+
+  /// No description provided for @settingsDeleteAllSubtitle.
+  ///
+  /// In vi, this message translates to:
+  /// **'Xóa sạch mọi giao dịch, hình ảnh và ngân sách khỏi máy'**
+  String get settingsDeleteAllSubtitle;
 }
 
 class _AppLocalizationsDelegate

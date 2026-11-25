@@ -27,6 +27,18 @@ class ReceiptLineItems extends Table {
   /// OCR confidence for this line.
   RealColumn get confidence => real().withDefault(const Constant(1))();
 
+  /// Revision number used by the cloud sync protocol (B.1).
+  IntColumn get revision => integer().withDefault(const Constant(0))();
+
+  /// Soft-delete timestamp used by cloud sync (B.1).
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  /// Sync state of this row (synced | pending | conflict, B.1).
+  TextColumn get syncState => text().withDefault(const Constant('synced'))();
+
+  /// Last successful sync time (B.1).
+  DateTimeColumn get lastSyncedAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

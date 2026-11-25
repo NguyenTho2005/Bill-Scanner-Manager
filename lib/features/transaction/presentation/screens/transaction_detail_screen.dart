@@ -31,6 +31,8 @@ class TransactionDetailScreen extends ConsumerWidget {
         return 'Nhập thủ công';
       case TransactionSource.import_:
         return 'Nhập từ file';
+      case TransactionSource.recurring:
+        return 'Giao dịch định kịt';
     }
   }
 
@@ -212,6 +214,19 @@ class TransactionDetailScreen extends ConsumerWidget {
                           _DetailRow(
                             label: 'Ghi chú',
                             value: tx.note!,
+                          ),
+                        ],
+                        const Divider(height: 24),
+                        _DetailRow(
+                          label: 'Quyền riêng tư',
+                          value: tx.isShared ? 'Chia sẻ với nhóm' : 'Riêng tư',
+                        ),
+                        if (tx.createdByName != null &&
+                            tx.createdByName!.isNotEmpty) ...[
+                          const Divider(height: 24),
+                          _DetailRow(
+                            label: 'Người tạo',
+                            value: tx.createdByName!,
                           ),
                         ],
                       ],

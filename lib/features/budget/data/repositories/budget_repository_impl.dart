@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:bill_tracker/core/analytics/analytics_service.dart';
 import 'package:bill_tracker/core/database/app_database.dart';
 import 'package:bill_tracker/core/extensions/format_extensions.dart';
@@ -6,6 +8,7 @@ import 'package:bill_tracker/features/budget/domain/entities/budget.dart';
 import 'package:bill_tracker/features/budget/domain/entities/category_budget_progress.dart';
 import 'package:bill_tracker/features/budget/domain/repositories/budget_repository.dart';
 import 'package:bill_tracker/features/transaction/data/repositories/category_repository_impl.dart';
+import 'package:bill_tracker/features/transaction/data/sync/entity_serializer.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/category.dart';
 import 'package:drift/drift.dart';
 
@@ -23,6 +26,25 @@ class BudgetRepositoryImpl implements BudgetRepository {
   final AppDatabase _db;
   final NotificationService _notificationService;
   final AnalyticsService _analyticsService;
+
+  /// Enqueues a sync outbox row inside the caller's transaction.
+  Future<void> _enqueueOutbox({
+    required String entityType,
+    required String entityId,
+    required String operation,
+    Map<String, Object?>? payload,
+  }) async {
+    await _db.into(_db.syncOutbox).insert(
+          SyncOutboxCompanion.insert(
+            id: 'sync_${entityType}_${entityId}_${DateTime.now().millisecondsSinceEpoch}',
+            entityType: entityType,
+            entityId: entityId,
+            operation: operation,
+            payloadJson: Value(jsonEncode(payload ?? {})),
+            createdAt: DateTime.now(),
+          ),
+        );
+  }
 
   @override
   Future<List<Budget>> getAllBudgets() async {
@@ -97,8 +119,19 @@ class BudgetRepositoryImpl implements BudgetRepository {
         _db.transactions,
         _db.transactions.categoryId.equalsExp(_db.budgets.categoryId) &
             _db.transactions.type.equals('expense') &
+            // §4.6 #16: only confirmed expenses count toward spend.
+            _db.transactions.status.equals('confirmed') &
             _db.transactions.occurredAt.isBiggerOrEqualValue(periodStart) &
-            _db.transactions.occurredAt.isSmallerOrEqualValue(periodEnd),
+            _db.transactions.occurredAt.isSmallerOrEqualValue(periodEnd) &
+            // Privacy: shared budgets only aggregate explicitly shared
+            // transactions (`isShared == true`) in the same household;
+            // personal budgets never aggregate other members' shared txs.
+            ((_db.budgets.householdId.isNotNull() &
+                    _db.transactions.isShared.equals(true) &
+                    _db.transactions.householdId
+                        .equalsExp(_db.budgets.householdId)) |
+                (_db.budgets.householdId.isNull() &
+                    _db.transactions.createdByUserId.isNull())),
       ),
     ])
       ..addColumns([amountSum])
@@ -126,6 +159,12 @@ class BudgetRepositoryImpl implements BudgetRepository {
   Future<void> saveBudget(Budget budget) async {
     final companion = budget.toCompanion();
     await _db.into(_db.budgets).insertOnConflictUpdate(companion);
+    await _enqueueOutbox(
+      entityType: 'budget',
+      entityId: budget.id,
+      operation: 'upsert',
+      payload: budgetPayload(budget),
+    );
     await _analyticsService.logEvent(
       AnalyticsEvents.budgetCreated,
       parameters: {
@@ -139,6 +178,11 @@ class BudgetRepositoryImpl implements BudgetRepository {
   @override
   Future<void> deleteBudget(String id) async {
     await (_db.delete(_db.budgets)..where((t) => t.id.equals(id))).go();
+    await _enqueueOutbox(
+      entityType: 'budget',
+      entityId: id,
+      operation: 'delete',
+    );
   }
 
   @override
@@ -160,27 +204,81 @@ class BudgetRepositoryImpl implements BudgetRepository {
           periodEnd: currentMonthEnd,
           alertSentAt80: false,
           alertSentAt100: false,
+          alertSentAt120: false,
         );
         await _db.update(_db.budgets).replace(activeBudget.toCompanion());
       }
 
-      // Compute spent amount in this active period
+      // Compute spent amount in this active period (confirmed expenses only,
+      // §4.6 #16 — draft/failed transactions never count).
+      // Shared budgets only count transactions with isShared == true in the
+      // same household.
       final amountSum = _db.transactions.amount.sum();
-      final query = _db.selectOnly(_db.transactions)
-        ..addColumns([amountSum])
-        ..where(
+      final baseCondition =
           _db.transactions.categoryId.equals(activeBudget.categoryId) &
               _db.transactions.type.equals('expense') &
+              _db.transactions.status.equals('confirmed') &
               _db.transactions.occurredAt
                   .isBiggerOrEqualValue(activeBudget.periodStart) &
               _db.transactions.occurredAt
-                  .isSmallerOrEqualValue(activeBudget.periodEnd),
-        );
+                  .isSmallerOrEqualValue(activeBudget.periodEnd);
+      final privacyCondition = activeBudget.isShared
+          ? _db.transactions.isShared.equals(true) &
+              _db.transactions.householdId.equals(activeBudget.householdId!)
+          : _db.transactions.createdByUserId.isNull();
+      final query = _db.selectOnly(_db.transactions)
+        ..addColumns([amountSum])
+        ..where(baseCondition & privacyCondition);
 
       final result = await query.getSingle();
       final spent = result.read(amountSum) ?? 0.0;
       final categoryName = activeBudget.category?.name ?? 'Ngân sách';
       final notifId = activeBudget.categoryId.hashCode.abs();
+
+      // Check 120% critical threshold first (§4.6 #16): a single alert marks
+      // every lower threshold as sent so it fires exactly once per cycle.
+      if (spent >= activeBudget.amountLimit * 1.2 &&
+          !activeBudget.alertSentAt120) {
+        await _notificationService.showBudgetAlert(
+          id: notifId,
+          title: 'Vượt ngân sách nghiêm trọng: $categoryName',
+          body: 'Bạn đã chi ${spent.toVnd()}, vượt 120% hạn mức '
+              '${activeBudget.amountLimit.toVnd()}!',
+        );
+
+        await _db.update(_db.budgets).replace(
+              activeBudget
+                  .copyWith(
+                    alertSentAt80: true,
+                    alertSentAt100: true,
+                    alertSentAt120: true,
+                  )
+                  .toCompanion(),
+            );
+
+        // The 120% jump crosses 100% too — record both analytics events.
+        await _analyticsService.logEvent(
+          AnalyticsEvents.budgetThresholdReached,
+          parameters: {
+            'categoryId': activeBudget.categoryId,
+            'threshold': 1.0,
+          },
+        );
+        await _analyticsService.logEvent(
+          AnalyticsEvents.budgetThresholdReached,
+          parameters: {
+            'categoryId': activeBudget.categoryId,
+            'threshold': 1.2,
+          },
+        );
+        await _analyticsService.logEvent(
+          AnalyticsEvents.budgetExceeded,
+          parameters: {
+            'categoryId': activeBudget.categoryId,
+          },
+        );
+        continue;
+      }
 
       // Check 100% exceeded threshold
       if (spent >= activeBudget.amountLimit && !activeBudget.alertSentAt100) {
@@ -265,9 +363,11 @@ class BudgetRepositoryImpl implements BudgetRepository {
       alertThresholds: thresholds,
       alertSentAt80: row.alertSentAt80,
       alertSentAt100: row.alertSentAt100,
+      alertSentAt120: row.alertSentAt120,
       periodStart: row.periodStart,
       periodEnd: row.periodEnd,
       category: category,
+      householdId: row.householdId,
     );
   }
 }
@@ -284,8 +384,10 @@ extension BudgetCompanionX on Budget {
       alertThresholds: Value(alertThresholds.join(',')),
       alertSentAt80: Value(alertSentAt80),
       alertSentAt100: Value(alertSentAt100),
+      alertSentAt120: Value(alertSentAt120),
       periodStart: Value(periodStart),
       periodEnd: Value(periodEnd),
+      householdId: Value(householdId),
     );
   }
 }

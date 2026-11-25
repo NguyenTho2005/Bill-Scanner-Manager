@@ -22,6 +22,16 @@ class FakeNotificationService implements NotificationService {
   }) async {
     alerts.add({'id': id, 'title': title, 'body': body});
   }
+
+  @override
+  Future<void> showRecurringTransactionAlert({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    alerts.add({'id': id, 'title': title, 'body': body, 'payload': payload});
+  }
 }
 
 class FakeAnalyticsService implements AnalyticsService {
@@ -262,6 +272,128 @@ void main() {
 
       await budgetRepo.deleteBudget('bg_to_delete');
       expect((await budgetRepo.getAllBudgets()).isEmpty, isTrue);
+    });
+
+    test('Scenario: vượt 120% bắn đúng 1 lần trong chu kỳ (§4.6 #16)',
+        () async {
+      final budget = Budget(
+        id: 'bg_travel',
+        categoryId: 'travel',
+        amountLimit: 1000000,
+        periodStart: periodStart,
+        periodEnd: periodEnd,
+      );
+      await budgetRepo.saveBudget(budget);
+      notificationService.alerts.clear();
+
+      // 1.300.000đ = 130% > 120% ngưỡng nghiêm trọng.
+      final tx = Transaction(
+        id: 'tx_120',
+        type: TransactionType.expense,
+        amount: 1300000,
+        currency: 'VND',
+        categoryId: 'travel',
+        occurredAt: now,
+        source: TransactionSource.manual,
+        status: TransactionStatus.confirmed,
+        createdAt: now,
+        updatedAt: now,
+      );
+      await txRepo.createTransaction(tx);
+
+      expect(notificationService.alerts, hasLength(1));
+      expect(
+        notificationService.alerts.first['title'],
+        contains('Vượt ngân sách'),
+      );
+      expect(notificationService.alerts.first['title'], contains('nghiêm trọng'));
+
+      final updated = await budgetRepo.getBudgetById('bg_travel');
+      expect(updated!.alertSentAt120, isTrue);
+      expect(updated.alertSentAt100, isTrue);
+      expect(updated.alertSentAt80, isTrue);
+
+      expect(
+        analyticsService.events.any(
+          (e) =>
+              e['name'] == AnalyticsEvents.budgetThresholdReached &&
+              (e['parameters'] as Map)['threshold'] == 1.2,
+        ),
+        isTrue,
+      );
+
+      // Gọi lại (ví dụ thêm giao dịch khác) → không bắn lặp.
+      notificationService.alerts.clear();
+      await budgetRepo.checkAndTriggerAlerts();
+      expect(notificationService.alerts, isEmpty);
+    });
+
+    test('giao dịch draft/failed không tính vào spentAmount (§4.6 #16)',
+        () async {
+      final budget = Budget(
+        id: 'bg_food_draft',
+        categoryId: 'food_drinks',
+        amountLimit: 3000000,
+        periodStart: periodStart,
+        periodEnd: periodEnd,
+      );
+      await budgetRepo.saveBudget(budget);
+      notificationService.alerts.clear();
+
+      // Confirmed: 1.000.000đ (33%).
+      await txRepo.createTransaction(
+        Transaction(
+          id: 'tx_confirmed',
+          type: TransactionType.expense,
+          amount: 1000000,
+          currency: 'VND',
+          categoryId: 'food_drinks',
+          occurredAt: now,
+          source: TransactionSource.manual,
+          status: TransactionStatus.confirmed,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      // Draft + failed: cộng dồn sẽ vượt 100% nếu bị tính.
+      await txRepo.createTransaction(
+        Transaction(
+          id: 'tx_draft',
+          type: TransactionType.expense,
+          amount: 1500000,
+          currency: 'VND',
+          categoryId: 'food_drinks',
+          occurredAt: now,
+          source: TransactionSource.manual,
+          status: TransactionStatus.draft,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      await txRepo.createTransaction(
+        Transaction(
+          id: 'tx_failed',
+          type: TransactionType.expense,
+          amount: 1500000,
+          currency: 'VND',
+          categoryId: 'food_drinks',
+          occurredAt: now,
+          source: TransactionSource.manual,
+          status: TransactionStatus.failed,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      // Progress chỉ cộng giao dịch confirmed.
+      final progress = (await budgetRepo.watchBudgetProgressList().first)
+          .firstWhere((p) => p.budget.id == 'bg_food_draft');
+      expect(progress.spentAmount, 1000000.0);
+      expect(progress.isExceeded, isFalse);
+
+      // Không có cảnh báo 100%/120% nào bị bắn oan.
+      expect(notificationService.alerts, isEmpty);
     });
   });
 }

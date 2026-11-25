@@ -14,7 +14,9 @@ class Budget extends Equatable {
     this.alertThresholds = const [0.8, 1.0, 1.2],
     this.alertSentAt80 = false,
     this.alertSentAt100 = false,
+    this.alertSentAt120 = false,
     this.category,
+    this.householdId,
   });
 
   /// Unique budget identifier.
@@ -38,6 +40,9 @@ class Budget extends Equatable {
   /// Whether limit reached alert (100%) was already dispatched this period.
   final bool alertSentAt100;
 
+  /// Whether the critical alert (120%) was already dispatched this period.
+  final bool alertSentAt120;
+
   /// Period start timestamp.
   final DateTime periodStart;
 
@@ -46,6 +51,12 @@ class Budget extends Equatable {
 
   /// Associated category entity (when populated via join).
   final Category? category;
+
+  /// Optional household ID for shared family budgets.
+  final String? householdId;
+
+  /// Whether this budget is shared with a household.
+  bool get isShared => householdId != null && householdId!.isNotEmpty;
 
   /// Creates a copy with replaced fields.
   Budget copyWith({
@@ -56,9 +67,11 @@ class Budget extends Equatable {
     List<double>? alertThresholds,
     bool? alertSentAt80,
     bool? alertSentAt100,
+    bool? alertSentAt120,
     DateTime? periodStart,
     DateTime? periodEnd,
     Category? category,
+    String? householdId,
   }) {
     return Budget(
       id: id ?? this.id,
@@ -68,9 +81,11 @@ class Budget extends Equatable {
       alertThresholds: alertThresholds ?? this.alertThresholds,
       alertSentAt80: alertSentAt80 ?? this.alertSentAt80,
       alertSentAt100: alertSentAt100 ?? this.alertSentAt100,
+      alertSentAt120: alertSentAt120 ?? this.alertSentAt120,
       periodStart: periodStart ?? this.periodStart,
       periodEnd: periodEnd ?? this.periodEnd,
       category: category ?? this.category,
+      householdId: householdId ?? this.householdId,
     );
   }
 
@@ -83,8 +98,10 @@ class Budget extends Equatable {
         alertThresholds,
         alertSentAt80,
         alertSentAt100,
+        alertSentAt120,
         periodStart,
         periodEnd,
         category,
+        householdId,
       ];
 }

@@ -7,6 +7,7 @@ import 'package:bill_tracker/core/storage/image_storage_service.dart';
 import 'package:bill_tracker/core/theme/app_theme.dart';
 import 'package:bill_tracker/core/utils/id_generator.dart';
 import 'package:bill_tracker/core/widgets/image_source_sheet.dart';
+import 'package:bill_tracker/features/settings/presentation/providers/settings_providers.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/category.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/transaction.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/transaction_media.dart';
@@ -45,6 +46,9 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
   late DateTime _occurredAt;
   PaymentMethod _paymentMethod = PaymentMethod.cash;
 
+  /// Editable draft of the parsed receipt line items (§4.6 #14).
+  List<_LineItemDraft> _lineItemDrafts = [];
+
   @override
   void initState() {
     super.initState();
@@ -62,6 +66,9 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
   void dispose() {
     _merchantController.dispose();
     _noteController.dispose();
+    for (final draft in _lineItemDrafts) {
+      draft.dispose();
+    }
     super.dispose();
   }
 
@@ -99,12 +106,12 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
 
       final bytes = await _imageFile!.readAsBytes();
 
-      // Store image
+      // Store image — honour the privacy setting (§4.6 #17).
       final storage = getIt<ImageStorageService>();
       final storedResult = await storage.processAndStoreImage(
         imageBytes: bytes,
         filePrefix: 'rcpt',
-        keepOriginal: false,
+        keepOriginal: ref.read(keepOriginalPhotosProvider),
       );
 
       // Run on-device OCR
@@ -134,6 +141,12 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
         }
         // Default category suggestion for receipts (F&B / bills / shopping)
         _selectedCategoryId = _guessCategory(extraction.merchant);
+        for (final draft in _lineItemDrafts) {
+          draft.dispose();
+        }
+        _lineItemDrafts = extraction.lineItems
+            .map(_LineItemDraft.fromParsed)
+            .toList();
       });
     } on Exception catch (e) {
       if (mounted) {
@@ -239,6 +252,26 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
       transaction: transaction,
       media: media,
     );
+
+    // Persist confirmed line items + the OCR extraction (with raw text kept
+    // local-only, §4.6 #14/#21). Non-fatal on failure: the transaction
+    // itself is already saved.
+    if (success && _extractionResult != null) {
+      try {
+        final repo = ref.read(transactionRepositoryProvider);
+        await repo.saveReceiptScanData(
+          transactionId: transactionId,
+          extraction: _extractionResult!,
+          lineItems: _lineItemDrafts
+              .where((d) => d.include)
+              .map((d) => d.toParsedLineItem())
+              .whereType<ParsedLineItem>()
+              .toList(),
+        );
+      } on Exception catch (_) {
+        // Swallow: line-item persistence must not block saving the expense.
+      }
+    }
 
     if (mounted) {
       setState(() => _isSaving = false);
@@ -495,9 +528,205 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
                 ],
               ),
             ),
+
+            // ── Line Items Editor (§4.6 #14) ─────────────────────────
+            if (_lineItemDrafts.isNotEmpty)
+              _LineItemsEditorSection(
+                drafts: _lineItemDrafts,
+                onChanged: () => setState(() {}),
+                onAddLine: () =>
+                    setState(() => _lineItemDrafts.add(_LineItemDraft.empty())),
+                onRemove: (draft) =>
+                    setState(() => _lineItemDrafts.remove(draft)),
+              ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Mutable draft of a parsed receipt line item, editable before save
+/// (§4.6 #14: user can fix each row in the review screen).
+class _LineItemDraft {
+  _LineItemDraft({
+    required this.nameController,
+    required this.quantityController,
+    required this.priceController,
+    this.include = true,
+  });
+
+  factory _LineItemDraft.fromParsed(ParsedLineItem item) {
+    return _LineItemDraft(
+      nameController: TextEditingController(text: item.name),
+      quantityController: TextEditingController(
+        text: item.quantity == null
+            ? ''
+            : (item.quantity == item.quantity!.roundToDouble()
+                ? item.quantity!.round().toString()
+                : item.quantity!.toStringAsFixed(2)),
+      ),
+      priceController: TextEditingController(
+        text: item.total == 0 ? '' : item.total.round().toString(),
+      ),
+    );
+  }
+
+  factory _LineItemDraft.empty() {
+    return _LineItemDraft(
+      nameController: TextEditingController(),
+      quantityController: TextEditingController(),
+      priceController: TextEditingController(),
+      include: true,
+    );
+  }
+
+  final TextEditingController nameController;
+  final TextEditingController quantityController;
+  final TextEditingController priceController;
+  bool include;
+
+  void dispose() {
+    nameController.dispose();
+    quantityController.dispose();
+    priceController.dispose();
+  }
+
+  /// Builds a [ParsedLineItem] from the current draft values; returns null
+  /// when the row is incomplete or invalid.
+  ParsedLineItem? toParsedLineItem() {
+    final name = nameController.text.trim();
+    final total = double.tryParse(
+      priceController.text.replaceAll(RegExp(r'[.,\s]'), ''),
+    );
+    if (name.isEmpty || total == null || total <= 0) return null;
+    final quantity = double.tryParse(
+      quantityController.text.replaceAll(',', '.'),
+    );
+    final unitPrice = quantity != null && quantity > 0
+        ? total / quantity
+        : null;
+    return ParsedLineItem(
+      name: name,
+      quantity: quantity,
+      unitPrice: unitPrice,
+      total: total,
+      confidence: 1, // user-confirmed rows are fully trusted
+    );
+  }
+}
+
+/// Editable list of receipt line items shown in the review screen.
+class _LineItemsEditorSection extends StatelessWidget {
+  const _LineItemsEditorSection({
+    required this.drafts,
+    required this.onChanged,
+    required this.onAddLine,
+    required this.onRemove,
+  });
+
+  final List<_LineItemDraft> drafts;
+  final VoidCallback onChanged;
+  final VoidCallback onAddLine;
+  final ValueChanged<_LineItemDraft> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Icon(Icons.receipt_long, size: 18, color: colorScheme.primary),
+              const Gap(8),
+              Text(
+                'Món hàng trong hóa đơn',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: onAddLine,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Thêm dòng'),
+              ),
+            ],
+          ),
+        ),
+        const Gap(4),
+        ...drafts.map(
+          (draft) => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Checkbox(
+                  value: draft.include,
+                  onChanged: (val) {
+                    draft.include = val ?? true;
+                    onChanged();
+                  },
+                ),
+                Expanded(
+                  flex: 5,
+                  child: TextField(
+                    controller: draft.nameController,
+                    decoration: const InputDecoration(
+                      hintText: 'Tên món',
+                      isDense: true,
+                    ),
+                    onChanged: (_) => onChanged(),
+                  ),
+                ),
+                const Gap(8),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: draft.quantityController,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      hintText: 'SL',
+                      isDense: true,
+                    ),
+                    onChanged: (_) => onChanged(),
+                  ),
+                ),
+                const Gap(8),
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: draft.priceController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      hintText: 'Thành tiền',
+                      isDense: true,
+                    ),
+                    onChanged: (_) => onChanged(),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.delete_outline,
+                    size: 20,
+                    color: colorScheme.error,
+                  ),
+                  tooltip: 'Xoá dòng',
+                  onPressed: () => onRemove(draft),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const Gap(8),
+      ],
     );
   }
 }

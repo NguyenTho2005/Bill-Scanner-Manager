@@ -1,10 +1,19 @@
+import 'package:bill_tracker/core/database/converters/snake_case_converters.dart';
 import 'package:bill_tracker/core/database/tables/ai_inferences_table.dart';
 import 'package:bill_tracker/core/database/tables/budgets_table.dart';
 import 'package:bill_tracker/core/database/tables/categories_table.dart';
+import 'package:bill_tracker/core/database/tables/chat_messages_table.dart';
+import 'package:bill_tracker/core/database/tables/household_members_table.dart';
 import 'package:bill_tracker/core/database/tables/receipt_extractions_table.dart';
 import 'package:bill_tracker/core/database/tables/receipt_line_items_table.dart';
+import 'package:bill_tracker/core/database/tables/recurring_rules_table.dart';
+import 'package:bill_tracker/core/database/tables/sync_metadata_table.dart';
+import 'package:bill_tracker/core/database/tables/sync_outbox_table.dart';
 import 'package:bill_tracker/core/database/tables/transaction_medias_table.dart';
 import 'package:bill_tracker/core/database/tables/transactions_table.dart';
+import 'package:bill_tracker/features/transaction/domain/entities/recurring_rule.dart';
+import 'package:bill_tracker/features/transaction/domain/entities/transaction.dart';
+import 'package:bill_tracker/features/transaction/domain/entities/transaction_media.dart';
 import 'package:drift/drift.dart';
 
 part 'app_database.g.dart';
@@ -103,6 +112,11 @@ final List<CategoriesCompanion> defaultCategories = [
     AIInferences,
     ReceiptExtractions,
     ReceiptLineItems,
+    ChatMessages,
+    SyncOutbox,
+    SyncMetadata,
+    RecurringRules,
+    HouseholdMembers,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -110,7 +124,21 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 6;
+
+  /// SQLite can't add an existing column — swallow duplicate errors so the
+  /// migration can be re-run after createAll (used by migration tests).
+  Future<void> _safeAddColumn(
+    Migrator m,
+    TableInfo<Table, dynamic> table,
+    GeneratedColumn column,
+  ) async {
+    try {
+      await m.addColumn(table, column);
+    } on Object {
+      // Ignore: duplicate column is fine when re-running after createAll.
+    }
+  }
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -120,6 +148,186 @@ class AppDatabase extends _$AppDatabase {
           await batch((batch) {
             batch.insertAll(categories, defaultCategories);
           });
+        },
+        onUpgrade: (Migrator m, int from, int to) async {
+          // v2 adds the on-device assistant chat history.
+          if (from < 2) {
+            await m.createTable(chatMessages);
+          }
+          // v3: enum snake_case normalization (A.1.2 + A.2.2)
+          if (from < 3) {
+            await _safeAddColumn(
+              m,
+              transactions,
+              transactions.revision,
+            );
+            await _safeAddColumn(
+              m,
+              transactions,
+              transactions.deletedAt,
+            );
+            await _safeAddColumn(
+              m,
+              transactions,
+              transactions.syncState,
+            );
+            await _safeAddColumn(
+              m,
+              transactions,
+              transactions.lastSyncedAt,
+            );
+            await _safeAddColumn(
+              m,
+              transactionMedias,
+              transactionMedias.revision,
+            );
+            await _safeAddColumn(
+              m,
+              transactionMedias,
+              transactionMedias.deletedAt,
+            );
+            await _safeAddColumn(
+              m,
+              transactionMedias,
+              transactionMedias.syncState,
+            );
+            await _safeAddColumn(
+              m,
+              transactionMedias,
+              transactionMedias.lastSyncedAt,
+            );
+            await m.createTable(syncOutbox);
+            await m.createTable(syncMetadata);
+
+            // A.1.2 + B.1 — sync columns on every syncable table.
+            await _safeAddColumn(
+              m,
+              categories,
+              categories.revision,
+            );
+            await _safeAddColumn(
+              m,
+              categories,
+              categories.deletedAt,
+            );
+            await _safeAddColumn(
+              m,
+              categories,
+              categories.syncState,
+            );
+            await _safeAddColumn(
+              m,
+              categories,
+              categories.lastSyncedAt,
+            );
+            await _safeAddColumn(
+              m,
+              budgets,
+              budgets.revision,
+            );
+            await _safeAddColumn(
+              m,
+              budgets,
+              budgets.deletedAt,
+            );
+            await _safeAddColumn(
+              m,
+              budgets,
+              budgets.syncState,
+            );
+            await _safeAddColumn(
+              m,
+              budgets,
+              budgets.lastSyncedAt,
+            );
+            await _safeAddColumn(
+              m,
+              receiptExtractions,
+              receiptExtractions.revision,
+            );
+            await _safeAddColumn(
+              m,
+              receiptExtractions,
+              receiptExtractions.deletedAt,
+            );
+            await _safeAddColumn(
+              m,
+              receiptExtractions,
+              receiptExtractions.syncState,
+            );
+            await _safeAddColumn(
+              m,
+              receiptExtractions,
+              receiptExtractions.lastSyncedAt,
+            );
+            await _safeAddColumn(
+              m,
+              receiptLineItems,
+              receiptLineItems.revision,
+            );
+            await _safeAddColumn(
+              m,
+              receiptLineItems,
+              receiptLineItems.deletedAt,
+            );
+            await _safeAddColumn(
+              m,
+              receiptLineItems,
+              receiptLineItems.syncState,
+            );
+            await _safeAddColumn(
+              m,
+              receiptLineItems,
+              receiptLineItems.lastSyncedAt,
+            );
+
+            // A.2.2 — backfill legacy camelCase enum values in-place.
+            const legacyBackfills = [
+              ['transactions', 'source', 'productSnap', 'product_snap'],
+              ['transactions', 'source', 'receiptScan', 'receipt_scan'],
+              ['transactions', 'source', 'import_', 'import'],
+              ['transactions', 'status', 'needsReview', 'needs_review'],
+            ];
+            for (final row in legacyBackfills) {
+              await customStatement(
+                'UPDATE ${row[0]} SET ${row[1]} = ? WHERE ${row[1]} = ?;',
+                [row[3], row[2]],
+              );
+            }
+          }
+          // v4: 120% budget alert flag (§4.6 #16).
+          if (from < 4 && to >= 4) {
+            await _safeAddColumn(
+              m,
+              budgets,
+              budgets.alertSentAt120,
+            );
+          }
+          // v5: recurring transaction rules table.
+          if (from < 5 && to >= 5) {
+            try {
+              await m.createTable(recurringRules);
+            } on Object {
+              // Ignore: table may already exist after onCreate's createAll.
+            }
+          }
+          // v6: households & per-transaction sharing flag (isShared).
+          if (from < 6 && to >= 6) {
+            try {
+              await m.createTable(householdMembers);
+            } on Object {
+              // Ignore if already created.
+            }
+            await _safeAddColumn(m, budgets, budgets.householdId);
+            await _safeAddColumn(m, transactions, transactions.isShared);
+            await _safeAddColumn(m, transactions, transactions.householdId);
+            await _safeAddColumn(
+              m,
+              transactions,
+              transactions.createdByUserId,
+            );
+            await _safeAddColumn(m, transactions, transactions.createdByName);
+          }
         },
       );
 }

@@ -9,6 +9,9 @@ class Budgets extends Table {
   /// Foreign key to Categories.id.
   TextColumn get categoryId => text()();
 
+  /// Optional household ID for shared family budgets.
+  TextColumn get householdId => text().nullable()();
+
   /// Budget period: 'monthly', 'weekly', 'custom'.
   TextColumn get period => text().withDefault(const Constant('monthly'))();
 
@@ -27,11 +30,28 @@ class Budgets extends Table {
   BoolColumn get alertSentAt100 =>
       boolean().withDefault(const Constant(false))();
 
+  /// Whether the 120% critical alert has already been sent for this cycle
+  /// (§4.6 #16).
+  BoolColumn get alertSentAt120 =>
+      boolean().withDefault(const Constant(false))();
+
   /// Start timestamp of current budget period.
   DateTimeColumn get periodStart => dateTime()();
 
   /// End timestamp of current budget period.
   DateTimeColumn get periodEnd => dateTime()();
+
+  /// Revision number used by the cloud sync protocol (B.1).
+  IntColumn get revision => integer().withDefault(const Constant(0))();
+
+  /// Soft-delete timestamp used by cloud sync (B.1).
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  /// Sync state of this row (synced | pending | conflict, B.1).
+  TextColumn get syncState => text().withDefault(const Constant('synced'))();
+
+  /// Last successful sync time (B.1).
+  DateTimeColumn get lastSyncedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

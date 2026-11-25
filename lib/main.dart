@@ -3,10 +3,10 @@ import 'package:bill_tracker/core/router/app_router.dart';
 import 'package:bill_tracker/core/security/local_security_service.dart';
 import 'package:bill_tracker/core/theme/app_theme.dart';
 import 'package:bill_tracker/features/auth/presentation/providers/auth_providers.dart';
+import 'package:bill_tracker/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
@@ -122,13 +122,9 @@ class _BillTrackerAppState extends ConsumerState<BillTrackerApp>
       routerConfig: _router,
 
       // ── Localization ──────────────────────────────────────────────────
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [Locale('vi', 'VN'), Locale('en', 'US')],
-      locale: const Locale('vi', 'VN'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: const Locale('vi'),
     );
   }
 }

@@ -13,6 +13,9 @@ class Routes {
   static const receiptScan = '/receipt-scan';
   static const createBudget = '/budget/new';
   static const editBudget = '/budget/edit';
+  static const households = '/households';
   static const createTransaction = '/transaction/new';
   static const editTransaction = '/transaction/edit';
+  static const recurringRules = '/recurring-rules';
+  static const recurringRuleEdit = '/recurring-rules/new';
 }

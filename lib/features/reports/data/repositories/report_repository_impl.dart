@@ -68,9 +68,7 @@ class ReportRepositoryImpl implements ReportRepository {
 
       final tx = Transaction(
         id: txRow.id,
-        type: txRow.type == 'income'
-            ? TransactionType.income
-            : TransactionType.expense,
+        type: txRow.type,
         amount: txRow.amount,
         currency: txRow.currency,
         categoryId: txRow.categoryId,
@@ -188,24 +186,30 @@ class ReportRepositoryImpl implements ReportRepository {
         .asyncMap((_) => getMonthlyReport(month));
   }
 
-  TransactionSource _mapSource(String source) {
+  TransactionSource _mapSource(dynamic source) {
+    if (source is TransactionSource) return source;
     switch (source) {
       case 'product_snap':
+      case 'productSnap':
         return TransactionSource.productSnap;
       case 'receipt_scan':
+      case 'receiptScan':
         return TransactionSource.receiptScan;
       case 'import':
+      case 'import_':
         return TransactionSource.import_;
       default:
         return TransactionSource.manual;
     }
   }
 
-  TransactionStatus _mapStatus(String status) {
+  TransactionStatus _mapStatus(dynamic status) {
+    if (status is TransactionStatus) return status;
     switch (status) {
       case 'draft':
         return TransactionStatus.draft;
       case 'needs_review':
+      case 'needsReview':
         return TransactionStatus.needsReview;
       case 'failed':
         return TransactionStatus.failed;

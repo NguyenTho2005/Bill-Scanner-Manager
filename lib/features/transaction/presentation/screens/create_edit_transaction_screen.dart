@@ -1,6 +1,7 @@
 import 'package:bill_tracker/core/extensions/format_extensions.dart';
 import 'package:bill_tracker/core/theme/app_theme.dart';
 import 'package:bill_tracker/core/utils/id_generator.dart';
+import 'package:bill_tracker/features/households/presentation/providers/household_providers.dart';
 import 'package:bill_tracker/features/transaction/domain/entities/transaction.dart';
 import 'package:bill_tracker/features/transaction/domain/repositories/transaction_repository.dart';
 import 'package:bill_tracker/features/transaction/domain/services/duplicate_detector.dart';
@@ -54,6 +55,8 @@ class _CreateEditTransactionScreenState
   late TextEditingController _noteController;
   late DateTime _occurredAt;
   PaymentMethod _paymentMethod = PaymentMethod.cash;
+  bool _isShared = false;
+  String? _selectedHouseholdId;
   bool _isSaving = false;
 
   bool get _isEditing => widget.initialTransaction != null;
@@ -71,6 +74,8 @@ class _CreateEditTransactionScreenState
     _noteController = TextEditingController(text: tx?.note ?? '');
     _occurredAt = tx?.occurredAt ?? DateTime.now();
     _paymentMethod = tx?.paymentMethod ?? PaymentMethod.cash;
+    _isShared = tx?.isShared ?? false;
+    _selectedHouseholdId = tx?.householdId;
   }
 
   @override
@@ -180,6 +185,8 @@ class _CreateEditTransactionScreenState
       status: TransactionStatus.confirmed,
       createdAt: widget.initialTransaction?.createdAt ?? now,
       updatedAt: now,
+      isShared: _isShared,
+      householdId: _isShared ? _selectedHouseholdId : null,
     );
 
     // Local duplicate check before performing any write. The user decides:
@@ -370,6 +377,71 @@ class _CreateEditTransactionScreenState
                     ),
                     maxLines: 2,
                   ),
+                  const Gap(12),
+
+                  // Privacy opt-in sharing toggle (default: private)
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.groups_outlined),
+                    title: const Text('Chia sẻ với ngân sách chung'),
+                    subtitle: const Text(
+                      'Tắt: giữ riêng tư · Bật: hiển thị cho thành viên nhóm',
+                    ),
+                    value: _isShared,
+                    onChanged: (val) {
+                      setState(() {
+                        _isShared = val;
+                        if (val && _selectedHouseholdId == null) {
+                          final households =
+                              ref.read(householdsListProvider).valueOrNull;
+                          if (households != null && households.isNotEmpty) {
+                            _selectedHouseholdId = households.first.id;
+                          }
+                        }
+                      });
+                    },
+                  ),
+                  if (_isShared) ...[
+                    const Gap(8),
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final households =
+                            ref.watch(householdsListProvider).valueOrNull ??
+                                const [];
+                        if (households.isEmpty) {
+                          return Text(
+                            'Chưa tham gia nhóm nào — hãy tạo hoặc tham gia nhóm trong mục Ngân sách chung.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          );
+                        }
+                        final currentVal = households.any(
+                          (h) => h.id == _selectedHouseholdId,
+                        )
+                            ? _selectedHouseholdId
+                            : households.first.id;
+                        return DropdownButtonFormField<String>(
+                          initialValue: currentVal,
+                          decoration: const InputDecoration(
+                            labelText: 'Chia sẻ với nhóm',
+                            prefixIcon: Icon(Icons.home_outlined),
+                          ),
+                          items: households
+                              .map(
+                                (h) => DropdownMenuItem(
+                                  value: h.id,
+                                  child: Text(h.name),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) {
+                            setState(() => _selectedHouseholdId = val);
+                          },
+                        );
+                      },
+                    ),
+                  ],
                   const Gap(24),
                 ],
               ),

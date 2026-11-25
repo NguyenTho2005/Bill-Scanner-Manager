@@ -24,6 +24,11 @@ class BudgetListScreen extends ConsumerWidget {
         title: const Text('Ngân sách & Hạn mức'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.groups_outlined),
+            tooltip: 'Ngân sách chung (Gia đình)',
+            onPressed: () => context.push(Routes.households),
+          ),
+          IconButton(
             icon: const Icon(Icons.add_circle_outline_rounded),
             tooltip: 'Thêm ngân sách',
             onPressed: () => context.push(Routes.createBudget),

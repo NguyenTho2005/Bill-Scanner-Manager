@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bill_tracker/core/database/app_database.dart';
+import 'package:bill_tracker/core/database/converters/snake_case_converters.dart';
 import 'package:bill_tracker/core/storage/image_storage_service.dart';
+import 'package:bill_tracker/features/transaction/domain/entities/transaction.dart';
 import 'package:drift/drift.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
@@ -120,16 +122,16 @@ class DataManagementService {
           .map(
             (t) => {
               'id': t.id,
-              'type': t.type,
+              'type': t.type.name,
               'amount': t.amount,
               'currency': t.currency,
               'categoryId': t.categoryId,
               'merchant': t.merchant,
               'occurredAt': t.occurredAt.toIso8601String(),
               'note': t.note,
-              'paymentMethod': t.paymentMethod,
-              'source': t.source,
-              'status': t.status,
+              'paymentMethod': t.paymentMethod?.name,
+              'source': t.source.name,
+              'status': t.status.name,
               'createdAt': t.createdAt.toIso8601String(),
               'updatedAt': t.updatedAt.toIso8601String(),
             },
@@ -188,14 +190,16 @@ class DataManagementService {
 
       final line = [
         _escapeCsv(tx.id),
-        _escapeCsv(tx.type == 'expense' ? 'Chi tiêu' : 'Thu nhập'),
+        _escapeCsv(
+          tx.type == TransactionType.expense ? 'Chi tiêu' : 'Thu nhập',
+        ),
         tx.amount.toString(),
         _escapeCsv(tx.currency),
         _escapeCsv(cat?.name ?? tx.categoryId),
         _escapeCsv(tx.merchant ?? ''),
         _escapeCsv(dateFormat.format(tx.occurredAt)),
-        _escapeCsv(tx.paymentMethod ?? ''),
-        _escapeCsv(tx.source),
+        _escapeCsv(tx.paymentMethod?.name ?? ''),
+        _escapeCsv(tx.source.name),
         _escapeCsv(tx.note ?? ''),
       ].join(',');
 
@@ -261,16 +265,30 @@ class DataManagementService {
             await _db.into(_db.transactions).insertOnConflictUpdate(
                   TransactionsCompanion(
                     id: Value(item['id'] as String),
-                    type: Value(item['type'] as String),
+                    type: Value(
+                      TransactionType.values.byName(item['type'] as String),
+                    ),
                     amount: Value((item['amount'] as num).toDouble()),
                     currency: Value((item['currency'] as String?) ?? 'VND'),
                     categoryId: Value(item['categoryId'] as String),
                     merchant: Value(item['merchant'] as String?),
                     occurredAt: Value(occurredAt),
                     note: Value(item['note'] as String?),
-                    paymentMethod: Value(item['paymentMethod'] as String?),
-                    source: Value((item['source'] as String?) ?? 'import'),
-                    status: Value((item['status'] as String?) ?? 'confirmed'),
+                    paymentMethod: Value(
+                      PaymentMethod.values.byName(
+                        (item['paymentMethod'] as String?) ?? 'other',
+                      ),
+                    ),
+                    source: Value(
+                      const TransactionSourceConverter().fromSql(
+                        (item['source'] as String?) ?? 'import',
+                      ),
+                    ),
+                    status: Value(
+                      const TransactionStatusConverter().fromSql(
+                        (item['status'] as String?) ?? 'confirmed',
+                      ),
+                    ),
                     createdAt: Value(createdAt),
                     updatedAt: Value(updatedAt),
                   ),

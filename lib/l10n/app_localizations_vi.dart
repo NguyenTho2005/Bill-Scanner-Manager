@@ -183,4 +183,91 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get lastMonth => 'Tháng trước';
+
+  @override
+  String get settingsTitle => 'Cài đặt & Dữ liệu';
+
+  @override
+  String get settingsAssistantSection => 'Trợ lý chi tiêu';
+
+  @override
+  String get settingsAssistantConfig => 'Cấu hình trợ lý';
+
+  @override
+  String get settingsAssistantSubtitle =>
+      'Mặc định offline · Cloud AI là tuỳ chọn (BYO key)';
+
+  @override
+  String get settingsSecuritySection => 'Bảo mật & Quyền riêng tư';
+
+  @override
+  String get settingsBiometricLock => 'Khóa sinh trắc học / PIN';
+
+  @override
+  String get settingsBiometricSubtitle => 'Yêu cầu Face ID/Vân tay khi mở app';
+
+  @override
+  String get settingsResetPin => 'Thiết lập lại mã PIN';
+
+  @override
+  String get settingsResetPinSubtitle => 'Đổi mã PIN 4 chữ số bảo mật';
+
+  @override
+  String get settingsKeepOriginalPhotos => 'Lưu ảnh gốc vào thư viện';
+
+  @override
+  String get settingsKeepOriginalSubtitle =>
+      'Mặc định chỉ lưu ảnh nén tối ưu (2048px) để tiết kiệm bộ nhớ';
+
+  @override
+  String get settingsStorageSection => 'Dung lượng & Sao lưu';
+
+  @override
+  String get settingsStorageUsed => 'Bộ nhớ đã sử dụng';
+
+  @override
+  String get settingsExportCsv => 'Xuất dữ liệu Excel / CSV';
+
+  @override
+  String get settingsExportCsvSubtitle => 'Mở bằng Excel hoặc Google Sheets';
+
+  @override
+  String get settingsExportJson => 'Sao lưu toàn bộ (JSON)';
+
+  @override
+  String get settingsExportJsonSubtitle =>
+      'Xuất toàn bộ giao dịch, danh mục, ngân sách';
+
+  @override
+  String get settingsImportJson => 'Khôi phục từ file sao lưu';
+
+  @override
+  String get settingsImportJsonSubtitle => 'Nhập dữ liệu từ bản sao lưu JSON';
+
+  @override
+  String get settingsCloudSyncSection => 'Đồng bộ hóa đám mây (Tùy chọn)';
+
+  @override
+  String get settingsLocalFirstTitle => 'Chế độ Local-first an toàn';
+
+  @override
+  String get settingsLocalFirstSubtitle =>
+      'Mọi dữ liệu chi tiêu và hình ảnh được lưu trữ an toàn 100% trên thiết bị của bạn. Ứng dụng hoạt động mượt mà hoàn toàn không cần Internet.';
+
+  @override
+  String get settingsEnableCloudSync => 'Bật đồng bộ đám mây';
+
+  @override
+  String get settingsEnableCloudSyncSubtitle =>
+      'Tùy chọn: Đồng bộ đa thiết bị khi có kết nối';
+
+  @override
+  String get settingsDangerZone => 'Vùng nguy hiểm';
+
+  @override
+  String get settingsDeleteAll => 'Xóa toàn bộ dữ liệu';
+
+  @override
+  String get settingsDeleteAllSubtitle =>
+      'Xóa sạch mọi giao dịch, hình ảnh và ngân sách khỏi máy';
 }

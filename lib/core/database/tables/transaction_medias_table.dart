@@ -1,3 +1,4 @@
+import 'package:bill_tracker/core/database/converters/snake_case_converters.dart';
 import 'package:drift/drift.dart';
 
 /// Transaction media table for associated photos (product photos, receipts).
@@ -9,8 +10,8 @@ class TransactionMedias extends Table {
   /// Foreign key to Transactions.id.
   TextColumn get transactionId => text()();
 
-  /// Media type: 'product', 'receipt', 'screenshot'.
-  TextColumn get type => text()();
+  /// Media type (snake_case via converter, A.1.1).
+  TextColumn get type => text().map(const MediaTypeConverter())();
 
   /// Local path to original image (nullable if user chose not to keep original).
   TextColumn get originalPath => text().nullable()();
@@ -35,6 +36,18 @@ class TransactionMedias extends Table {
 
   /// Timestamp when photo was captured.
   DateTimeColumn get capturedAt => dateTime().nullable()();
+
+  /// Revision number used by the cloud sync protocol (B.1).
+  IntColumn get revision => integer().withDefault(const Constant(0))();
+
+  /// Soft-delete timestamp used by cloud sync (B.1).
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  /// Sync state of this row (synced | pending | conflict, B.1).
+  TextColumn get syncState => text().withDefault(const Constant('synced'))();
+
+  /// Last successful sync time (B.1).
+  DateTimeColumn get lastSyncedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

@@ -255,6 +255,21 @@ class VietnameseTransactionQueryParser {
     return c == 'duoi' || c == 'it hon' || c == 'nho hon' || c == 'toi da';
   }
 
+  /// Extracts the first money amount written in free text.
+  ///
+  /// Accepts the same formats as the search parser — "45k", "1,5 triệu",
+  /// "200.000", "300 nghìn". Returns `null` when no number is present.
+  ///
+  /// This never touches the network; it only reuses the local amount grammar.
+  static double? extractAmount(String text) {
+    final normalized = VietnameseTextUtils.normalize(text);
+    final match = RegExp(
+      r'(\d+(?:[.,]\d+)*)\s*(nghin|ngan|k|trieu|tr)?',
+    ).firstMatch(normalized);
+    if (match == null) return null;
+    return _parseAmountPhrase(match.group(0) ?? '');
+  }
+
   /// Parses a phrase like "200 nghìn", "1.5 triệu", "200.000", "300k".
   static double? _parseAmountPhrase(String phrase) {
     final numberMatch = RegExp(r'(\d+(?:[.,]\d+)*)').firstMatch(phrase);

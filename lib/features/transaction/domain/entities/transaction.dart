@@ -23,6 +23,9 @@ enum TransactionSource {
 
   /// Imported from file/backup.
   import_,
+
+  /// Created automatically by a recurring transaction rule.
+  recurring,
 }
 
 /// Processing and confirmation status of the transaction.
@@ -77,6 +80,10 @@ class Transaction extends Equatable {
     this.paymentMethod,
     this.category,
     this.thumbnailPath,
+    this.isShared = false,
+    this.householdId,
+    this.createdByUserId,
+    this.createdByName,
   });
 
   /// Unique identifier (ULID / UUID v7).
@@ -124,6 +131,19 @@ class Transaction extends Equatable {
   /// Primary thumbnail path if photo is attached (optional relation join).
   final String? thumbnailPath;
 
+  /// Privacy opt-in flag: only shared transactions are visible to household
+  /// members and counted toward shared household budgets.
+  final bool isShared;
+
+  /// Optional household ID when [isShared] is true.
+  final String? householdId;
+
+  /// Authenticated creator user ID (populated by server for shared items).
+  final String? createdByUserId;
+
+  /// Creator display name shown in household spending views.
+  final String? createdByName;
+
   /// Creates a copy of this transaction with modified fields.
   Transaction copyWith({
     String? id,
@@ -141,6 +161,10 @@ class Transaction extends Equatable {
     DateTime? updatedAt,
     Category? category,
     String? thumbnailPath,
+    bool? isShared,
+    String? householdId,
+    String? createdByUserId,
+    String? createdByName,
   }) {
     return Transaction(
       id: id ?? this.id,
@@ -158,6 +182,10 @@ class Transaction extends Equatable {
       updatedAt: updatedAt ?? this.updatedAt,
       category: category ?? this.category,
       thumbnailPath: thumbnailPath ?? this.thumbnailPath,
+      isShared: isShared ?? this.isShared,
+      householdId: householdId ?? this.householdId,
+      createdByUserId: createdByUserId ?? this.createdByUserId,
+      createdByName: createdByName ?? this.createdByName,
     );
   }
 
@@ -178,5 +206,9 @@ class Transaction extends Equatable {
         updatedAt,
         category,
         thumbnailPath,
+        isShared,
+        householdId,
+        createdByUserId,
+        createdByName,
       ];
 }

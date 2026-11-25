@@ -1,13 +1,18 @@
+import 'package:bill_tracker/features/assistant/presentation/widgets/assistant_bubble.dart';
 import 'package:bill_tracker/features/auth/presentation/providers/auth_providers.dart';
 import 'package:bill_tracker/features/auth/presentation/screens/lock_screen.dart';
 import 'package:bill_tracker/features/budget/presentation/screens/budget_list_screen.dart';
 import 'package:bill_tracker/features/budget/presentation/screens/create_edit_budget_screen.dart';
 import 'package:bill_tracker/features/feed/presentation/screens/visual_feed_screen.dart';
+import 'package:bill_tracker/features/households/presentation/screens/household_budget_screen.dart';
 import 'package:bill_tracker/features/product_snap/presentation/screens/product_snap_screen.dart';
 import 'package:bill_tracker/features/receipt_scan/presentation/screens/receipt_scan_screen.dart';
 import 'package:bill_tracker/features/reports/presentation/screens/reports_screen.dart';
 import 'package:bill_tracker/features/settings/presentation/screens/settings_screen.dart';
+import 'package:bill_tracker/features/transaction/presentation/providers/transaction_providers.dart';
 import 'package:bill_tracker/features/transaction/presentation/screens/create_edit_transaction_screen.dart';
+import 'package:bill_tracker/features/transaction/presentation/screens/recurring_rule_edit_screen.dart';
+import 'package:bill_tracker/features/transaction/presentation/screens/recurring_transaction_screen.dart';
 import 'package:bill_tracker/features/transaction/presentation/screens/transaction_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -61,6 +66,18 @@ class AppRouter {
                 transactionId: state.pathParameters['id']!,
               ),
             ),
+            GoRoute(
+              path: Routes.recurringRules,
+              name: 'recurringRules',
+              builder: (_, __) => const RecurringTransactionScreen(),
+            ),
+            GoRoute(
+              path: '${Routes.recurringRuleEdit}/:ruleId',
+              name: 'recurringRuleEdit',
+              builder: (_, state) => RecurringRuleEditScreen(
+                ruleId: state.pathParameters['ruleId'],
+              ),
+            ),
           ],
         ),
         GoRoute(
@@ -94,6 +111,11 @@ class AppRouter {
         budgetId: state.pathParameters['id'],
       ),
     ),
+    GoRoute(
+      path: Routes.households,
+      name: 'households',
+      builder: (_, __) => const HouseholdBudgetScreen(),
+    ),
 
     // ── Camera flows (full-screen, no shell) ──────────────────────────────
     GoRoute(
@@ -116,8 +138,9 @@ class AppRouter {
     GoRoute(
       path: '${Routes.editTransaction}/:id',
       name: 'editTransaction',
-      builder: (_, state) =>
-          _PlaceholderScreen(title: 'Sửa ${state.pathParameters['id']}'),
+      builder: (_, state) => _EditTransactionByIdScreen(
+        transactionId: state.pathParameters['id']!,
+      ),
     ),
   ];
 }
@@ -129,18 +152,32 @@ class _AppLockListenable extends ChangeNotifier {
   }
 }
 
-// ── Placeholder screens — replaced per slice ──────────────────────────────────
-class _PlaceholderScreen extends StatelessWidget {
-  const _PlaceholderScreen({required this.title});
-  final String title;
+/// Deep-link wrapper that resolves a transaction by ID before opening edit UI.
+class _EditTransactionByIdScreen extends ConsumerWidget {
+  const _EditTransactionByIdScreen({required this.transactionId});
+
+  final String transactionId;
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Text(title, style: Theme.of(context).textTheme.headlineMedium),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final txAsync = ref.watch(transactionDetailProvider(transactionId));
+    return txAsync.when(
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
       ),
+      error: (err, _) => Scaffold(
+        appBar: AppBar(title: const Text('Sửa giao dịch')),
+        body: Center(child: Text('Lỗi: $err')),
+      ),
+      data: (tx) {
+        if (tx == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Sửa giao dịch')),
+            body: const Center(child: Text('Không tìm thấy giao dịch')),
+          );
+        }
+        return CreateEditTransactionScreen(initialTransaction: tx);
+      },
     );
   }
 }
@@ -153,9 +190,15 @@ class _MainShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
     final currentIndex = _indexFromLocation(location);
+    // The floating assistant is only shown on the four top-level tabs so it
+    // never covers detail screens that carry their own bottom actions.
+    final showAssistant = location == Routes.feed ||
+        location == Routes.budget ||
+        location == Routes.reports ||
+        location == Routes.settings;
 
     return Scaffold(
-      body: child,
+      body: showAssistant ? AssistantBubbleHost(child: child) : child,
       bottomNavigationBar: NavigationBar(
         selectedIndex: currentIndex,
         onDestinationSelected: (index) => _onNavTap(context, index),
