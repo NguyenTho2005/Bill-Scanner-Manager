@@ -17,7 +17,11 @@ Dự án gồm 2 phần độc lập:
 ## 0. Quick start (TL;DR)
 
 ```bash
-# ── App Flutter ──────────────────────────────────────────────
+# ── CÁCH NHANH NHẤT: 1 lệnh chạy tất cả (backend + app) ──────
+cd "/media/tho/NEW DATA1/BillTracker"
+./demo.sh
+
+# ── App Flutter (thủ công) ───────────────────────────────────
 cd bill_tracker
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs   # chỉ khi sửa DB/l10n
@@ -32,6 +36,55 @@ make migrate
 make seed
 # API:   http://localhost:8000/docs
 # MinIO: http://localhost:9001  (minioadmin / minioadmin)
+```
+
+---
+
+## 0.1. Chạy demo bằng **1 lệnh** (dành cho báo cáo / giảng viên)
+
+Từ thư mục dự án, chỉ cần:
+
+```bash
+cd "/media/tho/NEW DATA1/BillTracker"
+./demo.sh
+```
+
+Script sẽ tự động làm hết:
+
+1. Bật Docker stack: API + PostgreSQL + MinIO
+2. Chờ API healthy
+3. Chạy migration Alembic
+4. Seed dữ liệu dev (idempotent, chạy lại không sao)
+5. Bật emulator Android (mặc định `Pixel_6`) nếu chưa có thiết bị
+6. `flutter pub get` + build + cài + chạy app
+
+Các tuỳ chọn:
+
+| Lệnh | Tác dụng |
+|---|---|
+| `./demo.sh` | Chạy tất cả (backend + app) |
+| `./demo.sh --app-only` | Chỉ chạy app, không cần backend |
+| `./demo.sh --backend-only` | Chỉ chạy backend |
+| `./demo.sh --release` | Chạy app bản release (mượt hơn) |
+| `./demo.sh --device emulator-5554` | Chỉ định thiết bị |
+| `./demo.sh --avd Pixel_6` | Đổi emulator |
+| `./demo.sh --no-build` | Không rebuild Docker image (nhanh hơn) |
+
+> ⏱️ **Lần đầu chạy có thể mất 10–15 phút** (Docker build + Gradle tải dependency).
+> Trước buổi báo cáo nên chạy thử `./demo.sh` một lần để cache lại, các lần sau chỉ ~1–2 phút.
+
+Khi script đang chạy app, dùng các phím:
+
+| Phím | Tác dụng |
+|---|---|
+| `r` | Hot reload |
+| `R` | Hot restart |
+| `q` | Thoát app |
+
+Dừng backend sau khi demo:
+
+```bash
+cd backend && make down
 ```
 
 ---
